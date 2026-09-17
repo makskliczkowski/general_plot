@@ -24,7 +24,7 @@ from .axes                  import AxesList, IgnoredAxis
 from .colors                import get_cmap_safe
 from .config                import FigureConfig, KPathConfig, KSpaceConfig, PlotStyle, SpectralConfig
 from .data_loader           import filter_results as filter_results_impl
-from .fitting               import Fitter
+from .fitting               import Fitter, thin
 from .formatters            import MathTextSciFormatter
 from .help                  import PLOTTER_HELP
 from .style                 import (
@@ -1684,6 +1684,7 @@ class Plotter:
     def plot_fit(   ax,
                     funct,
                     x,
+                    maxelems = None,
                     **kwargs):
         """ 
         @staticmethod
@@ -1693,8 +1694,11 @@ class Plotter:
         - ax        :   axis to annotate on
         - funct     :   function to use for the fitting
         - x         :   arguments to the function
+        - maxelems  :   maximum number of points to draw (thin x/y together)
         """
         y = funct(x)
+        if maxelems is not None:
+            x, y = thin(np.asarray(x), np.asarray(y), max_points=maxelems)
         ax.plot(x, y, **kwargs)
 
     #################### L I N E S ####################
@@ -1751,7 +1755,7 @@ class Plotter:
     @staticmethod
     def scatter(ax, x, y, *,
         s           =   10,
-        c           =   'blue',
+        c           =   None,
         marker      =   'o',
         alpha       =   1.0,
         label       =   None,
@@ -1766,6 +1770,7 @@ class Plotter:
         plotnonfinite = False,
         clip_on     =   True,
         rasterized  =   False,
+        maxelems    =   None,
         **kwargs):
         """
         Creates a scatter plot on the provided axis, styled for Nature-like plots.
@@ -1775,12 +1780,16 @@ class Plotter:
             x (array-like): The x-coordinates of the points.
             y (array-like): The y-coordinates of the points.
             s (float or array-like, optional): The size of the points (default: 10).
-            c (color or array-like, optional): The color of the points (default: 'blue').
+            c (color or array-like, optional): The color of the points. When None,
+                matplotlib picks the next color from the cycle (default: None).
             marker (str, optional): The shape of the points (default: 'o').
             alpha (float, optional): The transparency of the points (0.0 to 1.0, default: 1.0).
             label (str, optional): The label for the points (default: None).
             edgecolor (str or array-like, optional): The edge color of the points (default: 'white').
             zorder (int, optional): The drawing order of the points (default: 5).
+            maxelems (int, optional): Maximum number of points to draw. When set,
+                x/y are thinned together to at most this many evenly spaced samples
+                (default: None, i.e. all points are drawn).
             **kwargs: Additional keyword arguments passed to `matplotlib.axes.Axes.scatter`.
 
         Example:
@@ -1790,6 +1799,21 @@ class Plotter:
             x = [x]
         if isinstance(y, (float, int)):
             y = [y]
+
+        if maxelems is not None:
+            arrays  = [np.asarray(x), np.asarray(y)]
+            for per_point in (s, alpha):
+                if isinstance(per_point, (list, tuple, np.ndarray)):
+                    arrays.append(np.asarray(per_point))
+            arrays  = thin(*arrays, max_points=maxelems)
+            x, y    = arrays[0], arrays[1]
+            idx     = 2
+            if isinstance(s, (list, tuple, np.ndarray)):
+                s = arrays[idx]
+                idx += 1
+            if isinstance(alpha, (list, tuple, np.ndarray)):
+                alpha = arrays[idx]
+                idx += 1
 
         # override the color if it is provided in the kwargs
         if 'color' in kwargs:
@@ -1881,7 +1905,7 @@ class Plotter:
                 x               = None,
                 ls              = '-',
                 lw              = 2.0,
-                color           = 'black',
+                color           = None,
                 # label
                 label           = None,
                 label_cond      = True,
@@ -1897,6 +1921,7 @@ class Plotter:
                 antialiased     = True,
                 solid_capstyle  = None,
                 solid_joinstyle = None,
+                maxelems        = None,
                 **kwargs):
         '''
         plot the data
@@ -1926,6 +1951,17 @@ class Plotter:
 
         if label is None or label == '':
             label_cond = False
+
+        if x is None and y is None:
+            x = [None]
+            y = [None]
+        elif x is None:
+            x = np.arange(len(y))
+        elif y is None:
+            raise ValueError("y cannot be None if x is provided.")
+
+        if maxelems is not None:
+            x, y = thin(np.asarray(x), np.asarray(y), max_points=maxelems)
 
         # use the defaults
         color, ls, marker   = Plotter._resolve_style(color, ls, marker)
@@ -2006,7 +2042,7 @@ class Plotter:
     # ################ LOG SCALE PLOTS ################
 
     @staticmethod
-    def semilogy(ax, x, y, ls='-', lw=1.5, color='black', label=None, marker=None, ms=None, label_cond=True, zorder=5, **kwargs):
+    def semilogy(ax, x, y, ls='-', lw=1.5, color=None, label=None, marker=None, ms=None, label_cond=True, zorder=5, maxelems=None, **kwargs):
         """
         Plot with logarithmic y-axis.
         
@@ -2020,14 +2056,18 @@ class Plotter:
             Line style.
         lw : float, default=1.5
             Line width.
-        color : str or int, default='black'
-            Line color. If int, uses colorsList[color].
+        color : str or int, optional
+            Line color. If None, matplotlib picks the next color from the cycle.
+            If int, uses colorsList[color].
         label : str, optional
             Legend label.
         marker : str, optional
             Marker style.
         ms : float, optional
             Marker size.
+        maxelems : int, optional
+            Maximum number of points to draw. When set, x/y are thinned together
+            to at most this many evenly spaced samples (default: None).
         **kwargs
             Additional arguments passed to ax.semilogy.
         
@@ -2036,11 +2076,14 @@ class Plotter:
         >>> Plotter.semilogy(ax, x, np.exp(-x), color='C0', label=r'$e^{-x}$')
         """
         ax      = Plotter.ax(ax)
-        color   = color     or kwargs.pop('c', 'black')
+        color   = color     or kwargs.pop('c', None)
         ls      = ls        or kwargs.pop('linestyle', '-')
         lw      = lw        or kwargs.pop('linewidth', 1.5)
         ms      = ms        or kwargs.pop('markersize', None)
         marker  = marker    or kwargs.pop('marker', None)
+
+        if maxelems is not None:
+            x, y = thin(np.asarray(x), np.asarray(y), max_points=maxelems)
 
         color, ls, marker   = Plotter._resolve_style(color, ls, marker)
         label_cond          = Plotter._label_cond(label, label_cond)
@@ -2048,7 +2091,7 @@ class Plotter:
         ax.semilogy(x, y, ls=ls, lw=lw, color=color, label=label if label_cond else '', marker=marker, ms=ms, zorder=zorder, **kwargs)
 
     @staticmethod
-    def semilogx(ax, x, y, ls='-', lw=1.5, color='black', label=None, marker=None, ms=None, label_cond=True, zorder=5, **kwargs):
+    def semilogx(ax, x, y, ls='-', lw=1.5, color=None, label=None, marker=None, ms=None, label_cond=True, zorder=5, maxelems=None, **kwargs):
         """
         Plot with logarithmic x-axis.
         
@@ -2062,14 +2105,18 @@ class Plotter:
             Line style.
         lw : float, default=1.5
             Line width.
-        color : str or int, default='black'
-            Line color. If int, uses colorsList[color].
+        color : str or int, optional
+            Line color. If None, matplotlib picks the next color from the cycle.
+            If int, uses colorsList[color].
         label : str, optional
             Legend label.
         marker : str, optional
             Marker style.
         ms : float, optional
             Marker size.
+        maxelems : int, optional
+            Maximum number of points to draw. When set, x/y are thinned together
+            to at most this many evenly spaced samples (default: None).
         **kwargs
             Additional arguments passed to ax.semilogx.
         
@@ -2081,10 +2128,13 @@ class Plotter:
         color, ls, marker   = Plotter._resolve_style(color, ls, marker)
         label_cond          = Plotter._label_cond(label, label_cond)
 
+        if maxelems is not None:
+            x, y = thin(np.asarray(x), np.asarray(y), max_points=maxelems)
+
         ax.semilogx(x, y, ls=ls, lw=lw, color=color, label=label if label_cond else '', marker=marker, ms=ms, zorder=zorder, **kwargs)
 
     @staticmethod
-    def loglog(ax, x, y, ls='-', lw=1.5, color='black', label=None, marker=None, ms=None, label_cond=True, zorder=5, **kwargs):
+    def loglog(ax, x, y, ls='-', lw=1.5, color=None, label=None, marker=None, ms=None, label_cond=True, zorder=5, maxelems=None, **kwargs):
         """
         Plot with logarithmic x and y axes.
         
@@ -2098,14 +2148,18 @@ class Plotter:
             Line style.
         lw : float, default=1.5
             Line width.
-        color : str or int, default='black'
-            Line color. If int, uses colorsList[color].
+        color : str or int, optional
+            Line color. If None, matplotlib picks the next color from the cycle.
+            If int, uses colorsList[color].
         label : str, optional
             Legend label.
         marker : str, optional
             Marker style.
         ms : float, optional
             Marker size.
+        maxelems : int, optional
+            Maximum number of points to draw. When set, x/y are thinned together
+            to at most this many evenly spaced samples (default: None).
         **kwargs
             Additional arguments passed to ax.loglog.
         
@@ -2119,14 +2173,17 @@ class Plotter:
         color, ls, marker   = Plotter._resolve_style(color, ls, marker)
         label_cond          = Plotter._label_cond(label, label_cond)
 
+        if maxelems is not None:
+            x, y = thin(np.asarray(x), np.asarray(y), max_points=maxelems)
+
         ax.loglog(x, y, ls=ls, lw=lw, color=color, label=label if label_cond else '', marker=marker, ms=ms, zorder=zorder, **kwargs)
 
     # -------------------- ERROR BARS --------------------
 
     @staticmethod
-    def errorbar(ax, x, y, yerr=None, xerr=None, fmt='o', color='black', capsize=2, capthick=1.0, elinewidth=1.0, markersize=5, label=None, label_cond=True, alpha=1.0, zorder=5,
+    def errorbar(ax, x, y, yerr=None, xerr=None, fmt='o', color=None, capsize=2, capthick=1.0, elinewidth=1.0, markersize=5, label=None, label_cond=True, alpha=1.0, zorder=5,
                  ecolor=None, errorevery=1, barsabove=False, uplims=False, lolims=False, xuplims=False, xlolims=False,
-                 clip_on=True, rasterized=False, **kwargs):
+                 clip_on=True, rasterized=False, maxelems=None, **kwargs):
         """
         Plot data with error bars.
         
@@ -2145,8 +2202,9 @@ class Plotter:
             Horizontal error bars (same format as yerr).
         fmt : str, default='o'
             Format string for markers ('' for no markers, just error bars).
-        color : str or int, default='black'
-            Color for markers and error bars.
+        color : str or int, optional
+            Color for markers and error bars. If None, matplotlib picks the next
+            color from the cycle. If int, uses colorsList[color].
         capsize : float, default=2
             Length of error bar caps.
         capthick : float, default=1.0
@@ -2159,6 +2217,10 @@ class Plotter:
             Legend label.
         alpha : float, default=1.0
             Transparency.
+        maxelems : int, optional
+            Maximum number of points to draw. When set, x/y (and any array-valued
+            yerr/xerr) are thinned together to at most this many evenly spaced
+            samples (default: None).
         **kwargs
             Additional arguments passed to ax.errorbar.
         
@@ -2173,6 +2235,33 @@ class Plotter:
         >>> # Error band without markers
         >>> Plotter.errorbar(ax, x, y, yerr=sigma, fmt='', elinewidth=2)
         """
+        if maxelems is not None:
+            arrays  = [np.asarray(x), np.asarray(y)]
+            asym    = []  # (kind, name) for asymmetric (2, N) error arrays
+            for name, err in (("yerr", yerr), ("xerr", xerr)):
+                if isinstance(err, (list, tuple, np.ndarray)):
+                    arr = np.asarray(err)
+                    if arr.ndim == 2 and arr.shape[0] == 2:
+                        asym.append((name, arr))
+                        continue
+                    arrays.append(arr)
+            arrays  = thin(*arrays, max_points=maxelems)
+            x, y    = arrays[0], arrays[1]
+            idx     = 2
+            if isinstance(yerr, (list, tuple, np.ndarray)) and not any(n == "yerr" for n, _ in asym):
+                yerr = arrays[idx]
+                idx += 1
+            if isinstance(xerr, (list, tuple, np.ndarray)) and not any(n == "xerr" for n, _ in asym):
+                xerr = arrays[idx]
+                idx += 1
+            for name, arr in asym:
+                thin_rows = thin(arr[0], arr[1], max_points=maxelems)
+                thinned   = np.vstack([thin_rows[0], thin_rows[1]])
+                if name == "yerr":
+                    yerr = thinned
+                else:
+                    xerr = thinned
+
         color, _, _         = Plotter._resolve_style(color)
         label_cond          = Plotter._label_cond(label, label_cond)
 

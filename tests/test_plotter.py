@@ -76,6 +76,66 @@ def test_save_fig(tmp_path):
     plt.close(fig)
 
 
+def test_default_color_auto_cycles():
+    """Curve primitives default to None color so matplotlib advances the cycle."""
+    fig, axes   = Plotter.get_subplots(1, 1)
+    ax          = axes[0]
+    x           = np.linspace(0, 1, 10)
+
+    Plotter.plot(ax, x, x)
+    Plotter.plot(ax, x, x**2)
+    Plotter.plot(ax, x, x**3, color="C0")
+
+    colors  = [line.get_color() for line in ax.get_lines()]
+    assert len(colors) == 3
+    assert colors[0] != colors[1], "plot() should auto-advance the color cycle"
+    assert colors[2] == "C0", "explicit color='C0' must be honored"
+
+    fig2, axes2  = Plotter.get_subplots(1, 1)
+    ax2          = axes2[0]
+    Plotter.scatter(ax2, x, x)
+    Plotter.scatter(ax2, x, x**2, c="C1")
+    assert ax2.collections[0].get_facecolor() is not None
+    assert np.allclose(np.asarray(ax2.collections[1].get_facecolor())[0], Plotter.to_rgba("C1")[:4])
+
+    plt.close(fig)
+    plt.close(fig2)
+
+
+def test_maxelems_thins_curves_and_errorbars():
+    """maxelems caps the number of drawn samples, keeping arrays aligned."""
+    fig, axes   = Plotter.get_subplots(1, 1)
+    ax          = axes[0]
+    x           = np.linspace(0, 10, 1000)
+    y           = np.sin(x)
+
+    Plotter.plot(ax, x, y, maxelems=50)
+    lines       = ax.get_lines()
+    assert len(lines[-1].get_xdata()) == 50
+    assert len(lines[-1].get_ydata()) == 50
+
+    Plotter.semilogy(ax, x, np.exp(x / 10), maxelems=30)
+    assert len(ax.get_lines()[-1].get_xdata()) == 30
+
+    Plotter.loglog(ax, np.geomspace(1, 1000, 500), np.geomspace(1, 100, 500), maxelems=25)
+    assert len(ax.get_lines()[-1].get_xdata()) == 25
+
+    # errorbars thin their arrays, including asymmetric (2, N) errors
+    Plotter.errorbar(
+        ax, x[:200], y[:200],
+        yerr=np.vstack([np.full(200, 0.1), np.full(200, 0.2)]),
+        maxelems=40,
+    )
+    n_pts   = len(ax.get_lines()[-1].get_xdata())
+    assert 0 < n_pts <= 40
+
+    # without maxelems nothing is thinned
+    Plotter.plot(ax, x, y)
+    assert len(ax.get_lines()[-1].get_xdata()) == 1000
+
+    plt.close(fig)
+
+
 # ---------------------------------------------
 #! EOF
 # ---------------------------------------------

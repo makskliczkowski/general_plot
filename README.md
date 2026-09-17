@@ -55,6 +55,12 @@ The library is organized into dedicated functional modules under `general_plot`:
 
 ## Usage
 
+### Colors, Length Caps, and Thinning
+
+The curve-plotting primitives (`plot`, `scatter`, `semilogy`, `semilogx`, `loglog`, `errorbar`, `plot_fit`) default their line/marker color to `None`, so matplotlib advances its color cycle automatically (C0, C1, ...) across a sequence of calls. Pass an explicit `color=`/`c=` to pin a specific color instead.
+
+All of those primitives accept `maxelems` (default `None`): when an integer is given, the curve is thinned, together with any array-valued error bars, to at most that many evenly spaced samples. This keeps long trajectories renderable and light in vector output without manual stride bookkeeping.
+
 ### Multi-Panel Figures
 
 The `Plotter.get_subplots` method constructs figures wrapped in an `AxesList`. Individual panels support linear indexing, coordinate indexing, or named panel keys.
