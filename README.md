@@ -1,4 +1,4 @@
-# general_plot
+# General Plot
 
 Scientific visualization toolkit based on Matplotlib. The module provides standardized configuration presets, multi-panel axis management, tick formatters, color palette manipulation, and curve fitting for publication figures.
 
@@ -41,7 +41,7 @@ pip install -e ".[all]"
 The library is organized into dedicated functional modules under `general_plot`:
 
 | Module | Contents |
-|---|---|
+| --- | --- |
 | `general_plot.style` | Style presets (`publication`, `nature`, `science`, `poster`), cycle iterators, and normalizers |
 | `general_plot.axes` | `AxesList` wrapper with 1D and 2D indexing, named panels, and `IgnoredAxis` proxy |
 | `general_plot.colors` | Colormaps, journal palettes, conversions, and perceptual transforms |

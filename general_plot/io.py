@@ -55,14 +55,8 @@ class PlotterSave:
         return data2plot
 
     @staticmethod
-    def singleColumnData(
-        directory: Union[str, Path],
-        fileName: str,
-        y: Any,
-        typ: str = ".npy",
-    ) -> None:
-        """Store a single 1D vector as .npy or .txt."""
-        to_save = np.asarray(y)
+    def _save_array(to_save: np.ndarray, directory: Union[str, Path], fileName: str, typ: str) -> None:
+        """Write a 2D array as '.npy' or as whitespace text ('.txt'/'.dat')."""
         if typ == ".npy":
             filepath = PlotterSave._prepare_path(directory, fileName, ".npy")
             np.save(filepath, to_save)
@@ -71,6 +65,16 @@ class PlotterSave:
             np.savetxt(filepath, to_save)
         else:
             raise ValueError(f"Unsupported file type '{typ}'. Use '.npy', '.txt', or '.dat'.")
+
+    @staticmethod
+    def singleColumnData(
+        directory: Union[str, Path],
+        fileName: str,
+        y: Any,
+        typ: str = ".npy",
+    ) -> None:
+        """Store a single 1D vector as .npy or .txt."""
+        PlotterSave._save_array(np.asarray(y), directory, fileName, typ)
 
     @staticmethod
     def twoColumnsData(
@@ -85,17 +89,7 @@ class PlotterSave:
         y_arr = np.asarray(y)
         if len(x_arr) != len(y_arr):
             raise ValueError(f"Sizes incompatible: len(x)={len(x_arr)} != len(y)={len(y_arr)}.")
-
-        to_save = np.column_stack((x_arr, y_arr))
-
-        if typ == ".npy":
-            filepath = PlotterSave._prepare_path(directory, fileName, ".npy")
-            np.save(filepath, to_save)
-        elif typ in (".txt", ".dat"):
-            filepath = PlotterSave._prepare_path(directory, fileName, typ)
-            np.savetxt(filepath, to_save)
-        else:
-            raise ValueError(f"Unsupported file type '{typ}'. Use '.npy', '.txt', or '.dat'.")
+        PlotterSave._save_array(np.column_stack((x_arr, y_arr)), directory, fileName, typ)
 
     @staticmethod
     def matrixData(
@@ -110,18 +104,8 @@ class PlotterSave:
         y_arr = np.asarray(y)
         if len(x_arr) != len(y_arr):
             raise ValueError(f"Sizes incompatible: len(x)={len(x_arr)} != len(y)={len(y_arr)}.")
-
-        if y_arr.ndim == 1:
-            to_save = np.column_stack((x_arr, y_arr))
-        else:
-            to_save = np.column_stack((x_arr, y_arr))
-
-        if typ == ".npy":
-            filepath = PlotterSave._prepare_path(directory, fileName, ".npy")
-            np.save(filepath, to_save)
-        else:
-            filepath = PlotterSave._prepare_path(directory, fileName, typ)
-            np.savetxt(filepath, to_save)
+        to_save = np.column_stack((x_arr, y_arr))
+        PlotterSave._save_array(to_save, directory, fileName, typ)
 
     @staticmethod
     def app_df(df: Any, colname: str, y: Any, fill_value: Any = np.nan) -> None:

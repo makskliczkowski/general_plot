@@ -511,6 +511,34 @@ class Plotter:
     ###########################################################
 
     @staticmethod
+    def _resolve_style(color, ls=None, marker=None):
+        """Resolve indexed color/linestyle/marker specs to concrete values.
+
+        Accepts integer indices into the module-level ``colorsList``,
+        ``linestylesList``, and ``markersList`` (wrapping via modulo), strings
+        passed to the normalizers, or pass-through values.
+
+        Returns
+        -------
+        tuple
+            (color, ls, marker) with every value resolved.
+        """
+        if isinstance(color, int):
+            color = colorsList[color % len(colorsList)]
+        if isinstance(ls, int):
+            ls = linestylesList[ls % len(linestylesList)]
+        if isinstance(marker, int):
+            marker = markersList[marker % len(markersList)]
+        return color, linestyleNorm(ls), markerNorm(marker)
+
+    @staticmethod
+    def _label_cond(label, label_cond=True):
+        """Return False when *label* is absent (empty/None), else *label_cond*."""
+        if label is None or label == '':
+            return False
+        return label_cond
+
+    @staticmethod
     def markers():
         ''' Markers with common options for line and scatter plots.'''
         return markersList
@@ -1334,7 +1362,7 @@ class Plotter:
                 return colors(norm(x))
 
         # Create Mappable for downstream colorbar reuse.
-        mappable = plt.cm.ScalarMappable(norm=norm, cmap=colors)
+        mappable = mpl.cm.ScalarMappable(norm=norm, cmap=colors)
         if values is not None:
             mappable.set_array(np.asarray(values))
         else:
@@ -1685,14 +1713,8 @@ class Plotter:
         horizontal line plotting
         '''
 
-        if isinstance(ls, int):
-            ls = linestylesList[ls % len(linestylesList)]
-
-        if isinstance(color, int):
-            color = colorsList[color % len(colorsList)]
-
-        if label is None or label == '':
-            label_cond = False
+        color, ls, _        = Plotter._resolve_style(color, ls)
+        label_cond          = Plotter._label_cond(label, label_cond)
 
         ax.axhline(val, ls = ls,  lw = lw,
                 label = label if (label is not None and len(label) != 0 and label_cond) else None,
@@ -1713,14 +1735,8 @@ class Plotter:
         '''
         vertical line plotting
         '''
-        if isinstance(ls, int):
-            ls = linestylesList[ls % len(linestylesList)]
-
-        if isinstance(color, int):
-            color = colorsList[color % len(colorsList)]
-
-        if label is None or label == '':
-            label_cond = False
+        color, ls, _        = Plotter._resolve_style(color, ls)
+        label_cond          = Plotter._label_cond(label, label_cond)
 
         ax.axvline(val,
                 ls      = ls,
@@ -1782,14 +1798,11 @@ class Plotter:
         if 'edgecolors' in kwargs:
             edgecolor = None
 
-        if isinstance(c, int):
-            c = colorsList[c % len(colorsList)]
+        # resolve indexed color/marker to concrete values
+        color_resolved, _, marker = Plotter._resolve_style(c, marker=marker)
+        c = color_resolved
 
-        if isinstance(marker, int):
-            marker = markersList[marker % len(markersList)]
-
-        if label is None or label == '':
-            label_cond = False
+        label_cond = Plotter._label_cond(label, label_cond)
 
         ax.scatter(
             x, y, linewidths=linewidths,
@@ -1915,15 +1928,7 @@ class Plotter:
             label_cond = False
 
         # use the defaults
-        if isinstance(color, int):
-            color = colorsList[color % len(colorsList)]
-
-        if isinstance(ls, int):
-            ls = linestylesList[ls % len(linestylesList)]
-
-        if isinstance(marker, int):
-            marker = markersList[marker % len(markersList)]
-        marker = markerNorm(marker)
+        color, ls, marker   = Plotter._resolve_style(color, ls, marker)
 
         line_style_kwargs = {}
         if solid_capstyle is not None:
@@ -2037,14 +2042,8 @@ class Plotter:
         ms      = ms        or kwargs.pop('markersize', None)
         marker  = marker    or kwargs.pop('marker', None)
 
-        if isinstance(color, int):
-            color   = colorsList[color % len(colorsList)]
-        if isinstance(ls, int):
-            ls      = linestylesList[ls % len(linestylesList)]
-        if isinstance(marker, int):
-            marker  = markersList[marker % len(markersList)]
-        if label is None or label == '':
-            label_cond = False
+        color, ls, marker   = Plotter._resolve_style(color, ls, marker)
+        label_cond          = Plotter._label_cond(label, label_cond)
 
         ax.semilogy(x, y, ls=ls, lw=lw, color=color, label=label if label_cond else '', marker=marker, ms=ms, zorder=zorder, **kwargs)
 
@@ -2079,14 +2078,8 @@ class Plotter:
         >>> Plotter.semilogx(ax, np.logspace(-3, 3, 100), y, color='C1')
         """
         ax = Plotter.ax(ax)
-        if isinstance(color, int):
-            color = colorsList[color % len(colorsList)]
-        if isinstance(ls, int):
-            ls = linestylesList[ls % len(linestylesList)]
-        if isinstance(marker, int):
-            marker = markersList[marker % len(markersList)]
-        if label is None or label == '':
-            label_cond = False
+        color, ls, marker   = Plotter._resolve_style(color, ls, marker)
+        label_cond          = Plotter._label_cond(label, label_cond)
 
         ax.semilogx(x, y, ls=ls, lw=lw, color=color, label=label if label_cond else '', marker=marker, ms=ms, zorder=zorder, **kwargs)
 
@@ -2122,14 +2115,9 @@ class Plotter:
         >>> x = np.logspace(0, 3, 50)
         >>> Plotter.loglog(ax, x, x**(-2), label=r'$x^{-2}$', color='C2')
         """
-        if isinstance(color, int):
-            color = colorsList[color % len(colorsList)]
-        if isinstance(ls, int):
-            ls = linestylesList[ls % len(linestylesList)]
-        if isinstance(marker, int):
-            marker = markersList[marker % len(markersList)]
-        if label is None or label == '':
-            label_cond = False
+        ax                  = Plotter.ax(ax)
+        color, ls, marker   = Plotter._resolve_style(color, ls, marker)
+        label_cond          = Plotter._label_cond(label, label_cond)
 
         ax.loglog(x, y, ls=ls, lw=lw, color=color, label=label if label_cond else '', marker=marker, ms=ms, zorder=zorder, **kwargs)
 
@@ -2185,10 +2173,8 @@ class Plotter:
         >>> # Error band without markers
         >>> Plotter.errorbar(ax, x, y, yerr=sigma, fmt='', elinewidth=2)
         """
-        if isinstance(color, int):
-            color = colorsList[color % len(colorsList)]
-        if label is None or label == '':
-            label_cond = False
+        color, _, _         = Plotter._resolve_style(color)
+        label_cond          = Plotter._label_cond(label, label_cond)
 
         ax.errorbar(x, y, yerr=yerr, xerr=xerr,
                     fmt=fmt, color=color,
@@ -2261,10 +2247,8 @@ class Plotter:
         >>> # Cumulative distribution
         >>> Plotter.histogram(ax, data, cumulative=True, density=True)
         """
-        if isinstance(color, int):
-            color = colorsList[color % len(colorsList)]
-        if label is None or label == '':
-            label_cond = False
+        color, _, _         = Plotter._resolve_style(color)
+        label_cond          = Plotter._label_cond(label, label_cond)
 
         return ax.hist(data, bins=bins, density=density,
                     histtype=histtype, alpha=alpha,
@@ -2310,6 +2294,34 @@ class Plotter:
     #################### T I C K S ####################
 
     @staticmethod
+    def _set_ticks_labelled(ax, which: str, ticks, labels):
+        """Set tick positions and labels, matching Matplotlib's modern idiom.
+
+        Uses the combined ``set_*ticks(positions, labels=...)`` form when
+        ``ticks`` and ``labels`` have equal length (or when ``ticks`` is None
+        and the current tick count matches). Mismatched counts fall back to
+        the historical ``set_*ticks`` + ``set_*ticklabels`` sequence, whose
+        behavior (warning or error) is delegated to Matplotlib itself.
+        """
+        set_ticks, get_ticks = (ax.set_xticks, ax.get_xticks) if which == 'x' else (ax.set_yticks, ax.get_yticks)
+        set_labels = ax.xaxis.set_ticklabels if which == 'x' else ax.yaxis.set_ticklabels
+
+        if labels is None:
+            set_ticks(ticks)
+        elif ticks is not None and len(ticks) == len(labels):
+            set_ticks(ticks, labels=labels)
+        elif ticks is None:
+            # labelled ticks without explicit positions: on current positions when matched
+            current = get_ticks()
+            if len(current) == len(labels):
+                set_ticks(current, labels=labels)
+            else:
+                set_labels(labels)
+        else:
+            set_ticks(ticks)
+            set_labels(labels)
+
+    @staticmethod
     def set_tickparams( ax,
                         labelsize       =   None,
                         left            =   True,
@@ -2344,15 +2356,10 @@ class Plotter:
         ax.tick_params(axis="both", which='minor', left=left, right=right,
                         top=top, bottom=bottom, direction="in",length=min_tick_l, **kwargs)
 
-        if xticks is not None:
-            ax.set_xticks(xticks)
-        if yticks is not None:
-            ax.set_yticks(yticks)
-
-        if xticklabels is not None:
-            ax.set_xticklabels(xticklabels)
-        if yticklabels is not None:
-            ax.set_yticklabels(yticklabels)
+        if xticks is not None or xticklabels is not None:
+            Plotter._set_ticks_labelled(ax, 'x', xticks, xticklabels)
+        if yticks is not None or yticklabels is not None:
+            Plotter._set_ticks_labelled(ax, 'y', yticks, yticklabels)
 
     @staticmethod
     def set_ax_params(
@@ -2686,10 +2693,8 @@ class Plotter:
             ax.set_xscale(xscale)
 
             # Ticks
-            if xticks is not None:
-                ax.set_xticks(xticks)
-            if xticklabels is not None:
-                ax.set_xticklabels(xticklabels)
+            if xticks is not None or xticklabels is not None:
+                Plotter._set_ticks_labelled(ax, 'x', xticks, xticklabels)
 
             # Minor ticks
             if show_minor_ticks and xscale == 'log' and minor_tick_locator == 'auto':
@@ -2721,10 +2726,8 @@ class Plotter:
             ax.set_yscale(yscale)
 
             # Ticks
-            if yticks is not None:
-                ax.set_yticks(yticks)
-            if yticklabels is not None:
-                ax.set_yticklabels(yticklabels)
+            if yticks is not None or yticklabels is not None:
+                Plotter._set_ticks_labelled(ax, 'y', yticks, yticklabels)
 
             # Minor ticks
             if show_minor_ticks and yscale == 'log' and minor_tick_locator == 'auto':
@@ -2989,50 +2992,39 @@ class Plotter:
             ax.yaxis.set_label_coords(inX, inY, **kwargs)
 
     @staticmethod
-    def setup_log_y(ax: plt.Axes, ylims=(1e-12, 1e6), decade_step=4):
-        """Configure clean log-scale y ticks at powers of 10 with LaTeX-like labels."""
-        ax.set_yscale('log')
-        ax.set_ylim(*ylims)
+    def _setup_log_axis(axis, limits=(), decade_step=4):
+        """Apply decade-aligned major/minor ticks for a log-scaled axis.
 
-        # major ticks every `decade_step` decades (e.g. 1e-8, 1e-4, 1e0, 1e4)
-        lo, hi  = np.log10(ylims[0]), np.log10(ylims[1])
+        *axis* is a matplotlib Axis (e.g. ``ax.xaxis``). Parameters match the
+        public :meth:`setup_log_x` / :meth:`setup_log_y`.
+        """
+        lo, hi  = np.log10(limits[0]), np.log10(limits[1])
         start   = int(np.ceil(lo / decade_step) * decade_step)
         stop    = int(np.floor(hi / decade_step) * decade_step)
         majors  = 10.0 ** np.arange(start, stop + 1, decade_step, dtype=float)
 
-        ax.yaxis.set_major_locator(FixedLocator(majors))
-        ax.yaxis.set_major_formatter(LogFormatterMathtext(base=10))  # shows 10^{n}
-
+        axis.set_major_locator(FixedLocator(majors))
+        axis.set_major_formatter(LogFormatterMathtext(base=10))  # shows 10^{n}
         # minors at 2..9 within each decade
-        ax.yaxis.set_minor_locator(LogLocator(base=10.0, subs=range(2, 10)))
-        ax.yaxis.set_minor_formatter(NullFormatter())
+        axis.set_minor_locator(LogLocator(base=10.0, subs=range(2, 10)))
+        axis.set_minor_formatter(NullFormatter())
 
-        # cosmetic tick lengths once (avoid mixing with Plotter if it already does this)
-        ax.tick_params(axis='y', which='major', length=4)
-        ax.tick_params(axis='y', which='minor', length=2)
+        axis.axes.tick_params(axis=axis.axis_name, which='major', length=4)
+        axis.axes.tick_params(axis=axis.axis_name, which='minor', length=2)
+
+    @staticmethod
+    def setup_log_y(ax: plt.Axes, ylims=(1e-12, 1e6), decade_step=4):
+        """Configure clean log-scale y ticks at powers of 10 with LaTeX-like labels."""
+        ax.set_yscale('log')
+        ax.set_ylim(*ylims)
+        Plotter._setup_log_axis(ax.yaxis, ylims, decade_step)
 
     @staticmethod
     def setup_log_x(ax: plt.Axes, xlims=(1e-12, 1e6), decade_step=4):
         """Configure clean log-scale x ticks at powers of 10 with LaTeX-like labels."""
         ax.set_xscale('log')
         ax.set_xlim(*xlims)
-
-        # major ticks every `decade_step` decades (e.g. 1e-8, 1e-4, 1e0, 1e4)
-        lo, hi  = np.log10(xlims[0]), np.log10(xlims[1])
-        start   = int(np.ceil(lo / decade_step) * decade_step)
-        stop    = int(np.floor(hi / decade_step) * decade_step)
-        majors  = 10.0 ** np.arange(start, stop + 1, decade_step, dtype=float)
-
-        ax.xaxis.set_major_locator(FixedLocator(majors))
-        ax.xaxis.set_major_formatter(LogFormatterMathtext(base=10))  # shows 10^{n}
-
-        # minors at 2..9 within each decade
-        ax.xaxis.set_minor_locator(LogLocator(base=10.0, subs=range(2, 10)))
-        ax.xaxis.set_minor_formatter(NullFormatter())
-
-        # cosmetic tick lengths once (avoid mixing with Plotter if it already does this)
-        ax.tick_params(axis='x', which='major', length=4)
-        ax.tick_params(axis='x', which='minor', length=2)
+        Plotter._setup_log_axis(ax.xaxis, xlims, decade_step)
 
     @staticmethod
     def set_smart_lim(
@@ -3209,13 +3201,13 @@ class Plotter:
         """
         if xticks:
             if remove_labels_only:
-                ax.set_xticklabels([])
+                ax.tick_params(axis='x', which='both', labelbottom=False)
             else:
                 ax.tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)
 
         if yticks:
             if remove_labels_only:
-                ax.set_yticklabels([])
+                ax.tick_params(axis='y', which='both', labelleft=False)
             else:
                 ax.tick_params(axis='y', which='both', left=False, right=False, labelleft=False)
 
@@ -3291,38 +3283,33 @@ class Plotter:
     ################### F O R M A T ###################
 
     @staticmethod
-    def set_formater(ax,
-                     formater = "%.1e",
-                     axis     = 'xy'):
-        """
-        Sets the formatter for the given axis on the plot.
-        """
-        if 'y' in axis:
-            ax.yaxis.set_major_formatter(MathTextSciFormatter(formater))
-        if 'x' in axis:
-            ax.xaxis.set_major_formatter(MathTextSciFormatter(formater))
+    def set_formater(ax, formater = "%.1e", axis = 'xy'):
+        """Alias of :meth:`set_formatter` (historical misspelling)."""
+        Plotter.set_formatter(ax, formatter=formater, axis=axis)
 
     @staticmethod
     def set_formatter(ax, formatter = "%.1e", axis = 'xy'):
-        """Correctly spelled alias for :meth:`set_formater`."""
-        Plotter.set_formater(ax, formater=formatter, axis=axis)
+        """Set the scientific-notation formatter on the requested axes."""
+        if 'y' in axis:
+            ax.yaxis.set_major_formatter(MathTextSciFormatter(formatter))
+        if 'x' in axis:
+            ax.xaxis.set_major_formatter(MathTextSciFormatter(formatter))
 
     @staticmethod
     def set_standard_formater(ax, axis = 'xy'):
-        """
-        Sets standard %g formatters for the given axis.
-        """
-        if 'x' in axis:
-            ax.xaxis.set_minor_formatter(mticker.FuncFormatter(lambda x, pos: "%g"%x))
-            ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, pos: "%g"%x))
-        if 'y' in axis:
-            ax.yaxis.set_minor_formatter(mticker.FuncFormatter(lambda x, pos: "%g"%x))
-            ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, pos: "%g"%x))
+        """Alias of :meth:`set_standard_formatter` (historical misspelling)."""
+        Plotter.set_standard_formatter(ax, axis=axis)
 
     @staticmethod
     def set_standard_formatter(ax, axis = 'xy'):
-        """Correctly spelled alias for :meth:`set_standard_formater`."""
-        Plotter.set_standard_formater(ax, axis=axis)
+        """Set standard ``%g`` major/minor formatters on the requested axes."""
+        fmt = mticker.FuncFormatter(lambda x, pos: "%g" % x)
+        if 'x' in axis:
+            ax.xaxis.set_minor_formatter(fmt)
+            ax.xaxis.set_major_formatter(fmt)
+        if 'y' in axis:
+            ax.yaxis.set_minor_formatter(fmt)
+            ax.yaxis.set_major_formatter(fmt)
 
     #################### G R I D S ####################
     #
@@ -3546,41 +3533,38 @@ class Plotter:
         >>> fig, axes = Plotter.make_grid(2, 2, figsize=(8, 8), 
         ...                               panel_labels=True, despine=True)
         """
-        fig, axs = plt.subplots(nrows, ncols, figsize=figsize,
-                                gridspec_kw =   {
-                                    'width_ratios'  : width_ratios,
-                                    'height_ratios' : height_ratios,
-                                    'wspace'        : wspace,
-                                    'hspace'        : hspace,
-                                    'left'          : left,
-                                    'right'         : right,
-                                    'top'           : top,
-                                    'bottom'        : bottom,
-                                },
-                                sharex              =   sharex,
-                                sharey              =   sharey,
-                                squeeze             =   False)
+        fig, axes = Plotter.get_subplots(
+            nrows, ncols,
+            sizex=figsize[0] if figsize else None,
+            sizey=figsize[1] if figsize else None,
+            sharex=sharex,
+            sharey=sharey,
+            panel_labels=panel_labels,
+            width_ratios=width_ratios,
+            height_ratios=height_ratios,
+            wspace=wspace,
+            hspace=hspace,
+            left=left,
+            right=right,
+            top=top,
+            bottom=bottom,
+            despine=despine,
+            constrained_layout=False,  # preserve historical manual-margin grid behavior
+        )
+        axes = list(axes)
 
-        # Flatten to list
-        axes = axs.flatten().tolist()
-
-        # Apply panel labels
-        if panel_labels:
+        # Preserve the historical non-parenthesis panel-label styles.
+        if panel_labels and panel_label_style != 'parenthesis':
             labels = 'abcdefghijklmnopqrstuvwxyz'
             for i, ax in enumerate(axes):
-                if i < len(labels):
-                    if panel_label_style == 'parenthesis':
-                        label = f'({labels[i]})'
-                    elif panel_label_style == 'bold':
-                        label = f'\\textbf{{{labels[i]}}}'
-                    else:
-                        label = labels[i]
-                    ax.text(-0.1, 1.05, label, transform=ax.transAxes, fontsize=12, fontweight='bold', va='bottom', ha='right')
-
-        # Apply despine
-        if despine:
-            for ax in axes:
-                Plotter.unset_spines(ax, top=True, right=True)
+                if i >= len(labels):
+                    break
+                if panel_label_style == 'bold':
+                    label = f'\\textbf{{{labels[i]}}}'
+                else:  # 'plain'
+                    label = labels[i]
+                ax.text(-0.1, 1.05, label, transform=ax.transAxes, fontsize=12,
+                        fontweight='bold', va='bottom', ha='right')
 
         return fig, axes
 
@@ -4057,7 +4041,10 @@ class Plotter:
         >>> for i in range(6):
         ...     Plotter.app_grid_subplot(axes, gs, fig, i)
         """
-        return Plotter.get_grid(nrows, ncols, wspace, hspace, width_ratios, height_ratios, ax_sub, **kwargs), []
+        return Plotter.get_grid(nrows, ncols,
+                                wspace=wspace, hspace=hspace,
+                                width_ratios=width_ratios, height_ratios=height_ratios,
+                                ax_sub=ax_sub, **kwargs), []
 
     @staticmethod
     def app_grid_subplot(axes: list, gs, fig, index: int, sharex=None, sharey=None, **kwargs):
@@ -4899,12 +4886,12 @@ class Plotter:
             Plotter.set_tickparams(axis)
             axis.set_title(f'{i + 1}')
             if xvals:
-                axis.set_xticks(range(len(heatmap[i].columns)))                                                         # Set positions for x ticks
-                axis.set_xticklabels([f"{col:.2f}" if k % 2 == 0 else '' for k, col in enumerate(heatmap[i].columns)])  # Set x labels
+                labels_x = [f"{col:.2f}" if k % 2 == 0 else '' for k, col in enumerate(heatmap[i].columns)]
+                axis.set_xticks(range(len(heatmap[i].columns)), labels=labels_x)  # Set positions + labels
             # y ticks
             if yvals:
-                axis.set_yticks(range(len(heatmap[i].index)))                                                           # Set positions for y ticks
-                axis.set_yticklabels([f"{ind:.2f}" if k % 2 == 0 else '' for k, ind in enumerate(heatmap[i].index)])    # Set y labels
+                labels_y = [f"{ind:.2f}" if k % 2 == 0 else '' for k, ind in enumerate(heatmap[i].index)]
+                axis.set_yticks(range(len(heatmap[i].index)), labels=labels_y)    # Set positions + labels
 
         return fig, ax, plots
 

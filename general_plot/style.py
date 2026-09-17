@@ -55,19 +55,33 @@ ADDITIONAL_LINESTYLES: Dict[str, tuple[int, tuple[int, ...]]] = {
     "densely spaced dashes"     : (0, (5, 1)),
 }
 
-colorsList              = list(mcolors.TABLEAU_COLORS)
+# Single source of truth for named color/linestyle cycle content. The public
+# *cycle globals below are derived from these sets and re-bound by reset_*.
+_COLOR_CYCLE_SETS: Dict[str, List[str]] = {
+                            "TABLEAU"   : list(mcolors.TABLEAU_COLORS),
+                            "Plastic"   : ["#E69F00", "#56B4E9", "#009E73", "#0072B2", "#D55E00", "#CC79A7", "#F0E442"],
+                            "Bright"    : list(mcolors.CSS4_COLORS),
+                            "Dark"      : list(mcolors.BASE_COLORS),
+                            "Pastel"    : list(mcolors.XKCD_COLORS),
+                        }
+_LINESTYLE_CYCLE_SETS: Dict[str, List[str]] = {
+                            "Normal"    : ["-", "--", "-.", ":"],
+                            "Extended"  : ["-", "--", "-.", ":"] + list(ADDITIONAL_LINESTYLES.keys()),
+                        }
+
+colorsList              = _COLOR_CYCLE_SETS["TABLEAU"]
 colorsCycle             = itertools.cycle(colorsList)
-colorsCyclePlastic      = itertools.cycle(["#E69F00", "#56B4E9", "#009E73", "#0072B2", "#D55E00", "#CC79A7", "#F0E442"])
-colorsCycleBright       = itertools.cycle(list(mcolors.CSS4_COLORS))
-colorsCycleDark         = itertools.cycle(list(mcolors.BASE_COLORS))
-colorsCyclePastel       = itertools.cycle(list(mcolors.XKCD_COLORS))
+colorsCyclePlastic      = itertools.cycle(_COLOR_CYCLE_SETS["Plastic"])
+colorsCycleBright       = itertools.cycle(_COLOR_CYCLE_SETS["Bright"])
+colorsCycleDark         = itertools.cycle(_COLOR_CYCLE_SETS["Dark"])
+colorsCyclePastel       = itertools.cycle(_COLOR_CYCLE_SETS["Pastel"])
 
 markersList             = ["o", "s", "v", "+", "o", "*", "D", "h", "H", "p", "P", "X", "d", "|", "_"]
 markersCycle            = itertools.cycle(["4", "2", "3", "1", "+", "x", "."] + markersList)
 
-linestylesList          = ["-", "--", "-.", ":"]
-linestylesCycle         = itertools.cycle(["-", "--", "-.", ":"])
-linestylesCycleExtended = itertools.cycle(["-", "--", "-.", ":"] + list(ADDITIONAL_LINESTYLES.keys()))
+linestylesList          = _LINESTYLE_CYCLE_SETS["Normal"]
+linestylesCycle         = itertools.cycle(_LINESTYLE_CYCLE_SETS["Normal"])
+linestylesCycleExtended = itertools.cycle(_LINESTYLE_CYCLE_SETS["Extended"])
 
 
 def markerNorm(x: Any) -> Any:
@@ -91,11 +105,22 @@ def linestyleNorm(x: Any) -> Any:
     return x
 
 
-def _reset_cycle(which: Optional[str], cycle_name: str, colors: list, cycle2take: Any) -> Any:
-    if which is None or which == cycle_name:
-        new_cycle = itertools.cycle(colors)
-        return new_cycle if cycle2take is None else cycle2take
-    return cycle2take
+def _get_color_slot(name: str) -> str:
+    """Return the module-global slot holding cycle *name* (default: TABLEAU)."""
+    slots = {
+        "TABLEAU"   : "colorsCycle",
+        "Plastic"   : "colorsCyclePlastic",
+        "Bright"    : "colorsCycleBright",
+        "Dark"      : "colorsCycleDark",
+        "Pastel"    : "colorsCyclePastel",
+    }
+    return slots.get(name, "colorsCycle")
+
+
+def _get_linestyle_slot(name: str) -> str:
+    """Return the module-global slot holding linestyle cycle *name*."""
+    slots = {"Normal": "linestylesCycle", "Extended": "linestylesCycleExtended"}
+    return slots.get(name, "linestylesCycle")
 
 
 def reset_color_cycles(which: Optional[str] = None):
@@ -107,64 +132,30 @@ def reset_color_cycles(which: Optional[str] = None):
         Cycle to reset: 'TABLEAU', 'Plastic', 'Bright', 'Dark', or 'Pastel'.
         If None, all cycles are reset.
     """
-    global colorsCycle, colorsCyclePlastic, colorsCycleBright, colorsCycleDark, colorsCyclePastel
-    cycle2take          = None
-    colorsCycle         = itertools.cycle(list(mcolors.TABLEAU_COLORS)) if (which is None or which == "TABLEAU") else colorsCycle
-    colorsCyclePlastic  = itertools.cycle(["#E69F00", "#56B4E9", "#009E73", "#0072B2", "#D55E00", "#CC79A7", "#F0E442"]) if (which is None or which == "Plastic") else colorsCyclePlastic
-    colorsCycleBright   = itertools.cycle(list(mcolors.CSS4_COLORS)) if (which is None or which == "Bright") else colorsCycleBright
-    colorsCycleDark     = itertools.cycle(list(mcolors.BASE_COLORS)) if (which is None or which == "Dark") else colorsCycleDark
-    colorsCyclePastel   = itertools.cycle(list(mcolors.XKCD_COLORS)) if (which is None or which == "Pastel") else colorsCyclePastel
-
-    if which == "TABLEAU":
-        return colorsCycle
-    if which == "Plastic":
-        return colorsCyclePlastic
-    if which == "Bright":
-        return colorsCycleBright
-    if which == "Dark":
-        return colorsCycleDark
-    if which == "Pastel":
-        return colorsCyclePastel
-    return colorsCycle
+    names = list(_COLOR_CYCLE_SETS) if which is None else [which]
+    for name in names:
+        if name in _COLOR_CYCLE_SETS:
+            globals()[_get_color_slot(name)] = itertools.cycle(_COLOR_CYCLE_SETS[name])
+    return globals()[_get_color_slot(which or "TABLEAU")]
 
 
 def get_color_cycle(which: Optional[str] = None):
     """Get the active color cycle iterator."""
-    global colorsCycle, colorsCyclePlastic, colorsCycleBright, colorsCycleDark, colorsCyclePastel
-    if which is None or which == "TABLEAU":
-        return colorsCycle
-    if which == "Plastic":
-        return colorsCyclePlastic
-    if which == "Bright":
-        return colorsCycleBright
-    if which == "Dark":
-        return colorsCycleDark
-    if which == "Pastel":
-        return colorsCyclePastel
-    return colorsCycle
+    return globals()[_get_color_slot(which)]
 
 
 def reset_linestyles(which: Optional[str] = None):
     """Reset linestyle cycles to initial states ('Normal' or 'Extended')."""
-    global linestylesCycle, linestylesCycleExtended
-    cycle2take = None
-    if which is None or which == "Normal":
-        linestylesCycle = itertools.cycle(["-", "--", "-.", ":"])
-        cycle2take = linestylesCycle
-    if which is None or which == "Extended":
-        linestylesCycleExtended = itertools.cycle(["-", "--", "-.", ":"] + list(ADDITIONAL_LINESTYLES.keys()))
-        cycle2take = linestylesCycleExtended if cycle2take is None else cycle2take
-    return cycle2take
+    names = list(_LINESTYLE_CYCLE_SETS) if which is None else [which]
+    for name in names:
+        if name in _LINESTYLE_CYCLE_SETS:
+            globals()[_get_linestyle_slot(name)] = itertools.cycle(_LINESTYLE_CYCLE_SETS[name])
+    return globals()[_get_linestyle_slot(which or "Normal")]
 
 
 def get_linestyle_cycle(which: Optional[str] = None):
     """Get the active linestyle cycle iterator."""
-    global linestylesCycle, linestylesCycleExtended
-    if which is None or which == "Normal":
-        return linestylesCycle
-    if which == "Extended":
-        return linestylesCycleExtended
-    return linestylesCycle
+    return globals()[_get_linestyle_slot(which)]
 
 
 def configure_style(

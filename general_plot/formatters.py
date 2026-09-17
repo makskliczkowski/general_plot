@@ -24,7 +24,11 @@ class CustomFormatter(mticker.Formatter):
 
 
 class PercentFormatter(mticker.PercentFormatter):
-    """Percent formatter with concise defaults for publication plots."""
+    """Percent formatter with concise defaults for publication plots.
+
+    When no axis is attached (standalone formatting), falls back to the
+    documented Matplotlib conversion (``x / xmax * 100``).
+    """
 
     def __init__(self, xmax: float = 100.0, decimals: int = 2, symbol: str = "%"):
         super().__init__(xmax=xmax, decimals=decimals, symbol=symbol)

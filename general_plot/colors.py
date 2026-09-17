@@ -8,7 +8,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import matplotlib as mpl
 import matplotlib.colors as mcolors
-import matplotlib.pyplot as plt
 import numpy as np
 
 
@@ -16,12 +15,14 @@ import numpy as np
 
 
 def get_cmap_safe(cmap: Union[str, mpl.colors.Colormap]) -> mpl.colors.Colormap:
-    """Retrieve colormap object safely across Matplotlib versions."""
+    """Retrieve a colormap object from the current Matplotlib registry.
+
+    Modern alias of ``mpl.colormaps[cmap]`` that also accepts a Colormap
+    instance directly. Kept for API compatibility.
+    """
     if isinstance(cmap, mpl.colors.Colormap):
         return cmap
-    if hasattr(mpl, "colormaps"):
-        return mpl.colormaps.get_cmap(cmap)
-    return plt.get_cmap(cmap)
+    return mpl.colormaps[cmap]
 
 
 DEFAULT_PALETTES: Dict[str, List[str]] = {
