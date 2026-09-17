@@ -646,6 +646,32 @@ def mod_round(a: int, b: int) -> int:
         m = m - 1 if a % b < 0 else m + 1
     return int(m)
 
+
+def thin(*arrays, max_points=None) -> tuple:
+    """Subsample all arrays together to at most `max_points` evenly-spaced rows.
+
+    Parameters
+    ----------
+    arrays : sequence of array-like
+        Aligned trajectories of equal leading length (e.g. steps, energy).
+    max_points : int, optional
+        Maximum number of samples to keep after thinning. When None or when
+        the input is already shorter, the arrays are returned unchanged.
+
+    Returns
+    -------
+    tuple
+        One thinned array per input, all sliced with the same stride so they
+        stay mutually aligned after subsampling.
+    """
+    if not arrays:
+        return ()
+    n   = len(arrays[0])
+    if not max_points or n <= max_points:
+        return arrays
+    stride  = max(1, int(np.ceil(n / max_points)))
+    return tuple(np.asarray(a)[::stride] for a in arrays)
+
 # ---------------------------------------------
 #! EOF
 # ---------------------------------------------

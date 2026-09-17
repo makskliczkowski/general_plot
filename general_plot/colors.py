@@ -202,6 +202,18 @@ def n_colors(n: int, cmap: Union[str, mpl.colors.Colormap] = "viridis", vmin: fl
     return [cmap_obj(v) for v in values]
 
 
+def cmap(name: Union[str, mpl.colors.Colormap], vmin: float = 0.0, vmax: float = 1.0, n: int = 256) -> mpl.colors.Colormap:
+    """Return `name` restricted to the [vmin, vmax] segment of the colormap.
+
+    The returned Colormap maps the normalized interval [0, 1] onto the sampled
+    segment, so values can be passed directly (e.g. ``cmap(norm(x))``). This is
+    the continuous counterpart of `n_colors`, which samples the same segment.
+    """
+    base        = get_cmap_safe(name)
+    samples     = base(np.linspace(float(vmin), float(vmax), int(n)))
+    return mcolors.LinearSegmentedColormap.from_list(f"{base.name}_{vmin:g}_{vmax:g}", samples)
+
+
 # ---------------------------------------------
 #! EOF
 # ---------------------------------------------

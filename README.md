@@ -44,9 +44,9 @@ The library is organized into dedicated functional modules under `general_plot`:
 | --- | --- |
 | `general_plot.style` | Style presets (`publication`, `nature`, `science`, `poster`), cycle iterators, and normalizers |
 | `general_plot.axes` | `AxesList` wrapper with 1D and 2D indexing, named panels, and `IgnoredAxis` proxy |
-| `general_plot.colors` | Colormaps, journal palettes, conversions, and perceptual transforms |
+| `general_plot.colors` | Colormaps (including segment truncation via `cmap`), journal palettes, conversions, and perceptual transforms |
 | `general_plot.formatters` | Numeric tick formatters (`CustomFormatter`, `PercentFormatter`, `MathTextSciFormatter`) |
-| `general_plot.fitting` | Model regressions via `Fitter`/`FitterParams` (linear, exponential, power, polynomial, arbitrary, histogram distributions) |
+| `general_plot.fitting` | Model regressions via `Fitter`/`FitterParams` (linear, exponential, power, polynomial, arbitrary, histogram distributions) plus array helpers such as `thin` |
 | `general_plot.plotter` | Primary `Plotter` interface and `GridBuilder` multi-row layout manager |
 | `general_plot.config` | Dataclasses for plot, figure, and reciprocal space configuration |
 | `general_plot.data_loader` | Result filtering with parameter tolerances via `filter_results` |
@@ -94,6 +94,25 @@ Plotter.set_ax_params(axes["scaling"], xlabel=r"System Size $N$", ylabel=r"Varia
 
 Plotter.save_fig("./figures", "multipanel.pdf", format="pdf")
 plt.close(fig)
+```
+
+### Colormaps and Trajectory Thinning
+
+`cmap` returns a colormap restricted to the `[vmin, vmax]` segment, the continuous counterpart of `n_colors`. Values are passed directly to the returned colormap, e.g. after normalization:
+
+```python
+from matplotlib.colors import Normalize
+
+trunc = cmap("inferno", vmin=0.35, vmax=0.85)
+norm  = Normalize(vmin=0, vmax=1)
+color = trunc(norm(0.5))
+```
+
+`thin` subsamples several aligned arrays together so they stay aligned when too long to plot:
+
+```python
+xt, yt = thin(x, y, max_points=400)
+ax.plot(xt, yt)
 ```
 
 ### Power-Law Guides

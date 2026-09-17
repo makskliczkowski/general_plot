@@ -1,8 +1,9 @@
 """Tests for color manipulation and palette helpers."""
 
 import matplotlib as mpl
+import numpy as np
 
-from general_plot.colors import blend, darken, desaturate, get_cmap_safe, lighten, n_colors, palette, palette_cycle, to_hex, to_rgba, with_alpha
+from general_plot.colors import blend, cmap, darken, desaturate, get_cmap_safe, lighten, n_colors, palette, palette_cycle, to_hex, to_rgba, with_alpha
 
 
 def test_conversions_and_adjustments():
@@ -33,6 +34,22 @@ def test_palettes_blend_and_cmaps():
     assert all(c.startswith("#") for c in samples)
 
     assert isinstance(get_cmap_safe("plasma"), mpl.colors.Colormap)
+
+
+def test_cmap_truncation():
+    """cmap() restricts a colormap to [vmin, vmax] and stays callable."""
+    truncated   = cmap("inferno", vmin=0.35, vmax=0.85)
+    assert isinstance(truncated, mpl.colors.Colormap)
+
+    # Normalized 0..1 map onto the sampled [vmin, vmax] segment endpoints.
+    base        = mpl.colormaps["inferno"]
+    assert np.allclose(truncated(0.0), base(0.35))
+    assert np.allclose(truncated(1.0), base(0.85))
+
+    # Interior samples interpolate within the segment (monotone in value).
+    vals        = [truncated(t)[0] for t in np.linspace(0.0, 1.0, 11)]
+    refs        = [base(v)[0] for v in np.linspace(0.35, 0.85, 11)]
+    assert np.allclose(vals, refs, atol=2e-2)
 
 
 # ---------------------------------------------

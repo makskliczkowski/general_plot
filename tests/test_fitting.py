@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from general_plot.fitting import Fitter, FitterParams
+from general_plot.fitting import Fitter, FitterParams, thin
 
 
 @pytest.fixture(scope="module")
@@ -116,6 +116,27 @@ def test_input_validation():
         Fitter._prepare_xy([1.0], [1.0])
     with pytest.raises(ValueError, match="mean_type"):
         Fitter.aggregate([1.0, 2.0], mean_type="bogus")
+
+
+def test_thin_subsamples_aligned():
+    """thin() reduces all arrays together so they stay mutually aligned."""
+    x       = np.arange(100)
+    y       = np.arange(100) * 2.0
+    xt, yt  = thin(x, y, max_points=10)
+    assert len(xt) <= 10
+    assert len(xt) == len(yt)
+    assert np.allclose(yt, xt * 2.0)        # alignment preserved
+
+    # Single array returns a one-element tuple.
+    (xr,)   = thin(x, max_points=5)
+    assert len(xr) <= 5
+
+    # Nothing to thin: original arrays returned.
+    a, b    = thin(x, y, max_points=200)
+    assert len(a) == 100 and len(b) == 100
+
+    # Empty input returns an empty tuple.
+    assert thin() == ()
 
 
 # ---------------------------------------------
