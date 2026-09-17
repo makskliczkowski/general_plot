@@ -13,24 +13,24 @@ import matplotlib.pyplot as plt
 # Check optional scienceplots availability cleanly
 try:
     import scienceplots  # noqa: F401
-    HAS_SCIENCEPLOTS = True
+    HAS_SCIENCEPLOTS    = True
 except ImportError:
-    HAS_SCIENCEPLOTS = False
+    HAS_SCIENCEPLOTS    = False
 
 # Check optional labellines availability cleanly
 try:
-    from labellines import labelLines
-    HAS_LABELLINES  = True
+    from labellines     import labelLines
+    HAS_LABELLINES      = True
 except ImportError:
-    labelLines      = None
-    HAS_LABELLINES  = False
+    labelLines          = None
+    HAS_LABELLINES      = False
 
 # Typography scales
-SMALL_SIZE      = 12
-MEDIUM_SIZE     = 14
-BIGGER_SIZE     = 16
+SMALL_SIZE              = 12
+MEDIUM_SIZE             = 14
+BIGGER_SIZE             = 16
 
-ADDITIONAL_LINESTYLES: Dict[str, tuple[int, tuple[int, ...]]] = {
+ADDITIONAL_LINESTYLES   : Dict[str, tuple[int, tuple[int, ...]]] = {
     "loosely dotted"            : (0, (1, 5)),
     "dotted"                    : (0, (1, 1)),
     "densely dotted"            : (0, (1, 1)),
@@ -158,13 +158,7 @@ def get_linestyle_cycle(which: Optional[str] = None):
     return globals()[_get_linestyle_slot(which)]
 
 
-def configure_style(
-    style: str = "publication",
-    font_size: int = 10,
-    use_latex: bool = False,
-    dpi: int = 150,
-    **overrides: Any,
-) -> None:
+def configure_style(style: str = "publication", font_size: int = 10, use_latex: bool = False, dpi: int = 150, **overrides: Any) -> None:
     """Configure matplotlib rcParams for publication-quality figures.
 
     Parameters

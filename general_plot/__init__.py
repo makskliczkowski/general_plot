@@ -13,6 +13,9 @@ from .io            import MatrixPrinter, PlotterSave
 from .plotter       import Plotter
 from .style         import configure_style, get_color_cycle, get_linestyle_cycle, get_rcparams_summary, reset_color_cycles, reset_linestyles
 
+# Configure the default style on import
+configure_style()
+
 __version__         = "0.1.0"
 __all__             = [
                         "AxesList",
