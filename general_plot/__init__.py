@@ -10,6 +10,7 @@ from .fitting       import Fitter, FitterParams, find_maximum_idx, find_nearest_
 from .formatters    import CustomFormatter, MathTextSciFormatter, PercentFormatter, set_formatter
 from .help          import PLOTTER_HELP
 from .io            import MatrixPrinter, PlotterSave
+from .colorbars     import ColormapResult
 from .plotter       import Plotter
 from .style         import configure_style, get_color_cycle, get_linestyle_cycle, get_rcparams_summary, reset_color_cycles, reset_linestyles
 
@@ -32,6 +33,7 @@ __all__             = [
                         "PLOTTER_HELP",
                         "PercentFormatter",
                         "PlotStyle",
+                        "ColormapResult",
                         "Plotter",
                         "PlotterSave",
                         "SpectralConfig",

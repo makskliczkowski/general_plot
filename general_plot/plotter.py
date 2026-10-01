@@ -3,6 +3,7 @@
 from __future__             import annotations
 
 import itertools
+import warnings
 import string
 from math                   import fsum
 from pathlib                import Path
@@ -21,12 +22,14 @@ from matplotlib.ticker      import FixedLocator, LogFormatterMathtext, LogLocato
 
 from .                      import colors as _gp_colors
 from .axes                  import AxesList, IgnoredAxis
+from .colorbars             import ColorbarMixin, ColormapResult
 from .colors                import get_cmap_safe
 from .config                import FigureConfig, KPathConfig, KSpaceConfig, PlotStyle, SpectralConfig
 from .data_loader           import filter_results as filter_results_impl
 from .fitting               import Fitter, thin
 from .formatters            import MathTextSciFormatter
 from .help                  import PLOTTER_HELP
+from .ticks                 import TickMixin
 from .style                 import (
                                 HAS_LABELLINES,
                                 colorsList,
@@ -42,7 +45,9 @@ from .style                 import (
 
 # ---------------------------
 
-class Plotter:
+
+
+class Plotter(ColorbarMixin, TickMixin):
     """
     Publication-quality plotting utilities for scientific computing.
     
@@ -56,10 +61,10 @@ class Plotter:
     
     Main Categories
     ---------------
-    **Plotting Methods**    : plot, scatter, tripcolor_field, semilogy, semilogx, loglog, errorbar, fill_between, histogram
-    **Axis Setup**          : set_ax_params, set_tickparams, setup_log_x, setup_log_y
-    **Annotations**         : set_annotate, set_annotate_letter, set_arrow
-    **Colorbars**           : add_colorbar, get_colormap, discrete_colormap  
+    **Plotting Methods**    : plot, scatter, tripcolor_field, semilogy, semilogx, loglog, errorbar, fill_between, band, histogram, density_2d, bar, pcolormesh
+    **Axis Setup**          : set_ax_params, set_ticks, set_tickparams, setup_log_x, setup_log_y
+    **Annotations**         : set_annotate, set_annotate_letter, letter, label_panels, set_arrow
+    **Colorbars**           : add_colorbar, get_colormap, get_norm, discrete_colormap
     **Layouts**             : get_subplots, get_grid, get_inset
     **Legends**             : set_legend, set_legend_custom
     **Saving**              : save_fig, savefig
@@ -76,6 +81,21 @@ class Plotter:
         'tick_length'   : 4,
         'tick_width'    : 0.9,
     }
+
+    # One tick style for every axis and colorbar, so that all ticks look alike. Matches the rcParams set in style.py.
+    TICK_LENGTH_MAJOR   = 4.0
+    TICK_LENGTH_MINOR   = 2.0
+    TICK_WIDTH          = 0.9
+    TICK_DIRECTION      = 'in'
+
+    # Default style of panel letters "(a)", "(b)", ... used by `letter` and `label_panels`.
+    LETTER_STYLE        = dict(x=0.04, y=0.95, fontsize=10, va='top')
+
+    @staticmethod
+    def default_labelsize(fontsize: Optional[float] = None) -> float:
+        """Tick-label size used by `set_ax_params` and `add_colorbar` when none is given."""
+        fontsize = plt.rcParams.get('font.size', 10) if fontsize is None else fontsize
+        return max(fontsize - 2, 8)
 
     def __init__(self, default_cmap='viridis', font_size=12, dpi=200):
         """
@@ -1070,344 +1090,11 @@ class Plotter:
 
     ####################### C O L O R S #######################
 
-    @staticmethod
-    def add_colorbar(fig                : mpl.figure.Figure,
-                    pos                 : List[float],
-                    mappable            : Union[np.ndarray, list, mpl.cm.ScalarMappable],
-                    cmap                : Union[str, mpl.colors.Colormap] = 'viridis',
-                    norm                : Optional[mpl.colors.Normalize] = None,
-                    vmin                : Optional[float] = None,
-                    vmax                : Optional[float] = None,
-                    scale               : str = 'linear',
-                    orientation         : str = 'vertical',
-                    label               : str = '',
-                    label_kwargs        : dict = None,
-                    title               : str = '',
-                    title_kwargs        : dict = None,
-                    ticks               : Optional[Union[List, np.ndarray]] = None,
-                    ticklabels          : Optional[List[str]] = None,
-                    tick_location       : str = 'auto',
-                    tick_params         : dict = None,
-                    extend              : str = None,
-                    format              : Optional[Union[str, mpl.ticker.Formatter]] = None,
-                    discrete            : Union[bool, int] = False,
-                    boundaries          : List[float] = None,
-                    invert              : bool = False,
-                    remove_pdf_lines    : bool = True,
-                    **kwargs) -> Tuple[mpl.colorbar.Colorbar, mpl.axes.Axes]:
-        """
-        Add a fully customizable colorbar to the figure at a specific position.
-
-        Parameters
-        ----------
-        fig : matplotlib.figure.Figure
-            Parent figure onto which the colorbar axis is added.
-        pos : list[float] | tuple[float, float, float, float]
-            [left, bottom, width, height] in figure coordinates (0..1).
-        mappable : array-like | matplotlib.cm.ScalarMappable
-            - If array-like: a new ScalarMappable is built from `cmap`/`norm` (and `scale`, `vmin`, `vmax`).
-            - If ScalarMappable: it is used directly. `vmin`/`vmax` update its clim; `norm` is taken from it
-            when not provided. Note: in this case `discrete`/`boundaries` resampling is not applied.
-        cmap : str | Colormap, default='viridis'
-            Colormap name or object. If `mappable` is a ScalarMappable, its cmap is used unless `cmap`
-            is explicitly different from the default and a new mappable is constructed (array-like path).
-        norm : matplotlib.colors.Normalize, optional
-            Normalization to map data to 0-1. Ignored if `mappable` is ScalarMappable and `norm` is None
-            (then the mappable's norm is used).
-        vmin, vmax : float, optional
-            Data limits. When `scale='log'`, non-positive `vmin` is clamped internally.
-        scale : {'linear', 'log', 'symlog'}, default='linear'
-            Creates a suitable Normalize when `mappable` is array-like and `norm` is None.
-            - 'linear'  -> Normalize
-            - 'log'     -> LogNorm (vmin<=0 clamped to ~1e-10)
-            - 'symlog'  -> SymLogNorm with linthresh=0.1
-        orientation : {'vertical', 'horizontal'}, default='vertical'
-            Colorbar orientation.
-        label : str, default=''
-            Axis label along the long side of the colorbar.
-        label_kwargs : dict, optional
-            Passed to ColorbarBase.set_label (e.g., dict(fontsize=..., labelpad=...)).
-        title : str, default=''
-            Title text set at the end/top of the colorbar. For horizontal bars, the title is placed to the side.
-        title_kwargs : dict, optional
-            Text properties for the title (e.g., dict(fontsize=..., pad=...)).
-        ticks : list[float] | np.ndarray, optional
-            Explicit major tick locations.
-        ticklabels : list[str], optional
-            Custom labels for the ticks (same length as `ticks`).
-        tick_location : {'auto','left','right','top','bottom'}, default='auto'
-            Side on which to draw ticks/labels (respects `orientation`).
-        tick_params : dict, optional
-            Passed to cbar.ax.tick_params (e.g., dict(length=4, width=1, direction='in')).
-        extend : {'neither','both','min','max','neutral'}, default='neutral'
-            Colorbar extension behavior. Standard Matplotlib values are 'neither', 'both', 'min', 'max'.
-            'neutral' is treated as a pass-through here and may behave like 'neither' depending on Matplotlib.
-        format : str | matplotlib.ticker.Formatter, optional
-            Tick formatting. If str (e.g., '%.2e'), uses FormatStrFormatter.
-        discrete : bool | int, default=False
-            Discretize colormap when building from array-like:
-            - True  -> 10 bins
-            - int N -> N bins
-            Ignored when `mappable` is a ScalarMappable.
-        boundaries : list[float], optional
-            Discrete bin edges. Enables BoundaryNorm and passes `boundaries` to fig.colorbar
-            (default spacing='proportional', overridable via kwargs['spacing']).
-        invert : bool, default=False
-            If True, invert the colorbar axis direction.
-        remove_pdf_lines : bool, default=True
-            Set solids edgecolor to 'face' to avoid white hairlines in vector exports (PDF/SVG).
-        **kwargs :
-            Additional arguments forwarded to `fig.colorbar`, e.g.:
-            - alpha, spacing ('uniform'|'proportional'), fraction, pad, shrink, aspect, drawedges, etc.
-
-        Returns
-        -------
-        (cbar, cax) : tuple[matplotlib.colorbar.Colorbar, matplotlib.axes.Axes]
-            The created colorbar and its axes.
-
-        Notes
-        -----
-        - When `mappable` is a ScalarMappable, this helper does not modify its colormap discretization.
-            To use `discrete`/`boundaries`, pass raw data (array-like) instead.
-        - For 'log' scale, ensure your data are strictly positive (this function clamps vmin if needed).
-
-        Examples
-        --------
-        # Vertical, linear scale from raw data
-        cbar, cax = Plotter.add_colorbar(fig, [0.92, 0.15, 0.02, 0.7], data, label='Mz')
-
-        # Horizontal, log scale with sci formatting and extensions
-        cbar, cax = Plotter.add_colorbar(
-            fig, [0.2, 0.9, 0.6, 0.03], data,
-            scale='log', orientation='horizontal',
-            format='%.0e', extend='both',
-            tick_location='top', label='Conductance'
-        )
-
-        # Discrete categorical-like bar with custom tick labels
-        cbar, cax = Plotter.add_colorbar(
-            fig, [0.85, 0.1, 0.03, 0.8], [0, 1, 2],
-            cmap='Set1', discrete=3,
-            ticklabels=['Insulator', 'Metal', 'SC']
-        )
-
-        # Non-uniform boundaries
-        cbar, cax = Plotter.add_colorbar(
-            fig, [0.86, 0.15, 0.02, 0.7], data,
-            boundaries=[0, 0.5, 2.0, 10.0], spacing='proportional'
-        )
-        """
-        # 1. Handle Normalization and Mappable
-        if isinstance(mappable, mpl.cm.ScalarMappable):
-            sm = mappable
-            if vmin is not None or vmax is not None:
-                sm.set_clim(vmin, vmax)
-            # If a mappable is passed, we might need to extract the cmap/norm for modifications
-            if norm is None:
-                norm = sm.norm
-            if cmap == 'viridis':
-                cmap = sm.cmap  # Only override default if specific one not passed
-        else:
-            data    = np.asarray(mappable)
-            _vmin   = vmin if vmin is not None else np.nanmin(data)
-            _vmax   = vmax if vmax is not None else np.nanmax(data)
-
-            # Discrete Boundaries (e.g., for Phase Diagrams)
-            if boundaries is not None:
-                cmap_obj    = mpl.colormaps[cmap] if isinstance(cmap, str) else cmap
-                norm        = mcolors.BoundaryNorm(boundaries, cmap_obj.N, clip=True)
-
-            # Standard Scales
-            elif norm is None:
-                if scale == 'log':
-                    if _vmin <= 0:
-                        _vmin = 1e-10
-                    norm = mcolors.LogNorm(vmin=_vmin, vmax=_vmax)
-                elif scale == 'symlog':
-                    norm = mcolors.SymLogNorm(linthresh=0.1, vmin=_vmin, vmax=_vmax)
-                else:
-                    norm = mcolors.Normalize(vmin=_vmin, vmax=_vmax)
-
-            # Discretize Colormap (e.g. 10 distinct colors)
-            if discrete:
-                cmap_obj    = mpl.colormaps[cmap] if isinstance(cmap, str) else cmap
-                n_bins      = discrete if isinstance(discrete, int) and discrete > 1 else 10
-                cmap        = cmap_obj.resampled(n_bins)
-
-            sm = mpl.cm.ScalarMappable(cmap=cmap, norm=norm)
-            sm.set_array([])
-
-        # Formatting
-        if isinstance(format, str):
-            format = mticker.FormatStrFormatter(format)
-
-        # Create Axes and Colorbar
-        # Pass boundaries to colorbar if they exist (ensures spacing is correct)
-        cax         = fig.add_axes(pos)
-        cbar_kwargs = kwargs.copy()
-        if boundaries is not None:
-            cbar_kwargs['boundaries']   = boundaries
-            cbar_kwargs['spacing']      = kwargs.get('spacing', 'proportional')
-
-        cbar        = fig.colorbar(sm, cax=cax, orientation=orientation, extend=extend, format=format, **cbar_kwargs)
-
-        # Labels and Titles
-        if label:
-            l_kwargs = label_kwargs or {}
-            cbar.set_label(label, **l_kwargs)
-
-        if title:
-            # Smart default padding for title
-            t_kwargs    = title_kwargs or {}
-            pad         = t_kwargs.pop('pad', 10)
-            if orientation == 'vertical':
-                cbar.ax.set_title(title, pad=pad, **t_kwargs)
-            else:
-                # For horizontal, title usually makes sense as a side label or top label
-                cbar.ax.text(1.05, 0.5, title, transform=cbar.ax.transAxes, va='center', ha='left', **t_kwargs)
-
-        # Tick Customization
-        if ticks is not None:
-            cbar.set_ticks(ticks)
-        if ticklabels is not None:
-            cbar.set_ticklabels(ticklabels)
-
-        # Tick Location (Top/Bottom/Left/Right)
-        if tick_location != 'auto':
-            if orientation == 'horizontal':
-                cax.xaxis.set_ticks_position(tick_location)
-                cax.xaxis.set_label_position(tick_location)
-            else:
-                cax.yaxis.set_ticks_position(tick_location)
-                cax.yaxis.set_label_position(tick_location)
-
-        if tick_params:
-            cbar.ax.tick_params(**tick_params)
-
-        # Utilities
-        if invert:
-            cbar.ax.invert_axis()
-
-        if scale == 'log' and ticks is None and boundaries is None:
-            cbar.ax.minorticks_on()
-
-        # PDF Export Fix (Removes white lines between colors)
-        if remove_pdf_lines:
-            cbar.solids.set_edgecolor("face")
-
-        return cbar, cax
 
     ###########################################################
 
-    @staticmethod
-    def get_colormap(values: Optional[np.ndarray] = None, vmin=None, vmax=None, *,
-            cmap='PuBu', elsecolor='blue', get_mappable: bool = False, return_mappable: Optional[bool] = None,
-            norm=None, scale='linear', **kwargs):
-        """
-        Get a colormap for the given values.
-        
-        Parameters:
-        - values (array-like): The values to map to colors.
-        - cmap (str, optional): The colormap to use. Defaults to 'PuBu'.
-        - elsecolor (str, optional): The color to use if there is only one value. Defaults to 'blue'.
-        - get_mappable (bool, optional): If True, also return a ScalarMappable as
-          the 4th item, ready to pass into `Plotter.add_colorbar(..., mappable=...)`.
-        - return_mappable (bool, optional): Alias for `get_mappable`.
-        
-        Returns:
-        - getcolor (function): A function that maps a value to a color.
-        - colors (Colormap): The colormap object.
-        - norm (Normalize): The normalization object.
-        - mappable (ScalarMappable, optional): Returned when `get_mappable=True`
-          (or `return_mappable=True`).
-        
-        Example:
-        >>> getcolor, colors, norm = Plotter.get_colormap([1, 2, 3], cmap='viridis')
-        >>> color = getcolor(2.5)
-        >>> getcolor, colors, norm, mappable = Plotter.get_colormap(
-        ...     [1, 2, 3], cmap='viridis', return_mappable=True
-        ... )
-        """
-        if return_mappable is not None:
-            get_mappable = bool(return_mappable)
 
-        # Resolve vmin/vmax
-        if values is None and (vmin is None or vmax is None):
-            raise ValueError("Either 'values' or both 'vmin' and 'vmax' must be provided.")
 
-        if vmin is None:
-            vmin = np.nanmin(values)
-        if vmax is None:
-            vmax = np.nanmax(values)
-
-        # Create Norm (if not provided externally)
-        if norm is None:
-            if scale == 'log':
-                if vmin <= 0:
-                    vmin = 1e-10
-                norm = LogNorm(vmin=vmin, vmax=vmax)
-            elif scale == 'symlog':
-                norm = SymLogNorm(linthresh=0.1, vmin=vmin, vmax=vmax)
-            else:
-                norm = Normalize(vmin=vmin, vmax=vmax)
-
-        colors = get_cmap_safe(cmap)
-
-        # Create getcolor function
-        if vmin == vmax:
-            def getcolor(x):
-                return elsecolor
-        else:
-            def getcolor(x):
-                return colors(norm(x))
-
-        # Create Mappable for downstream colorbar reuse.
-        mappable = mpl.cm.ScalarMappable(norm=norm, cmap=colors)
-        if values is not None:
-            mappable.set_array(np.asarray(values))
-        else:
-            mappable.set_array(np.asarray([vmin, vmax], dtype=float))
-
-        if get_mappable:
-            return getcolor, colors, norm, mappable
-        return getcolor, colors, norm
-
-    @staticmethod
-    def apply_colormap(ax, data, cmap='PuBu', colorbar=True, **kwargs):
-        """
-        Apply a colormap to the given data and plot it on the provided axis.
-        
-        Parameters:
-        - ax (object): The axis object to plot on.
-        - data (array-like): The data to plot.
-        - cmap (str, optional): The colormap to use. Defaults to 'PuBu'.
-        - colorbar (bool, optional): Whether to add a colorbar. Defaults to True.
-        
-        Returns:
-        - img (AxesImage): The image object.
-        """
-        norm    = Normalize(np.min(data), np.max(data))
-        img     = ax.imshow(data, cmap=cmap, norm=norm, **kwargs)
-        if colorbar:
-            plt.colorbar(img, ax=ax)
-        return img
-
-    @staticmethod
-    def discrete_colormap(N, base_cmap=None):
-        """
-        Create an N-bin discrete colormap from the specified input map.
-        
-        Parameters:
-        - N (int): Number of discrete colors.
-        - base_cmap (str or Colormap, optional): The base colormap to use. Defaults to None.
-        
-        Returns:
-        - cmap (Colormap): The discrete colormap.
-        """
-        base        = get_cmap_safe(base_cmap)
-        color_list  = base(np.linspace(0, 1, N))
-        cmap_name   = base.name + str(N)
-        return ListedColormap(color_list, name=cmap_name)
 
     ##################################################
 
@@ -1555,6 +1242,32 @@ class Plotter:
         ax = Plotter.ax(ax)
         Plotter.set_annotate(ax, elem = f'({chr(97 + iter)})' + addit, x = x, y = y, color = color, fontweight = fontweight,
                 fontsize = fontsize, cond = condition, xycoords = xycoords, zorder = zorder, boxaround = boxaround, **kwargs)
+
+    @staticmethod
+    def letter(ax, index: int, text: str = '', **kwargs):
+        """
+        Panel letter "(a)", "(b)", ... followed by `text`, in the shared style `Plotter.LETTER_STYLE`.
+
+        Parameters
+        ----------
+        index : int
+            0 gives "(a)".
+        text : str
+            Text after the letter. A leading space is added.
+        **kwargs
+            Override entries of `LETTER_STYLE` (x, y, fontsize, va, ...) or pass to `set_annotate_letter`.
+        """
+        style = {**Plotter.LETTER_STYLE, **kwargs}
+        Plotter.set_annotate_letter(ax, iter=index, addit=(' ' + text) if text else '', **style)
+
+    @staticmethod
+    def label_panels(axes, texts=None, *, start: int = 0, **kwargs):
+        """
+        Letter every axis in `axes` with `letter`; `texts` is an optional list of strings, one per axis.
+        """
+        axes = list(np.ravel(list(axes), order='C')) if not isinstance(axes, mpl.axes.Axes) else [axes]
+        for i, a in enumerate(axes):
+            Plotter.letter(a, start + i, texts[i] if texts is not None else '', **kwargs)
 
     @staticmethod
     def set_arrow(  ax,
@@ -2351,6 +2064,132 @@ class Plotter:
 
     ###################################################
 
+
+    @staticmethod
+    def _edges(c):
+        """Cell edges from monotonic cell centers (midpoints, extrapolated at the ends)."""
+        c = np.asarray(c, dtype=float)
+        if len(c) == 1:
+            return np.array([c[0] - 0.5, c[0] + 0.5])
+        mid = 0.5 * (c[1:] + c[:-1])
+        return np.concatenate([[c[0] - (mid[0] - c[0])], mid, [c[-1] + (c[-1] - mid[-1])]])
+
+    @staticmethod
+    def pcolormesh(ax, x, y, z, *, cmap='viridis', scale='linear', vmin=None, vmax=None, norm=None, centers: bool = True, rasterized: bool = True, zorder=1, **kwargs):
+        """
+        Heatmap of `z[iy, ix]` on a rectilinear grid.
+
+        Parameters
+        ----------
+        x, y : array-like
+            Cell centers (`centers=True`, lengths nx, ny) or cell edges (`centers=False`, lengths nx+1, ny+1).
+        z : array-like, shape (ny, nx)
+            Values.
+        cmap, scale, vmin, vmax, norm
+            Colormap and normalization. `norm` overrides `scale`, `vmin`, `vmax`; see `get_norm`.
+            `cmap` may also be the result of `get_colormap`, which supplies both colormap and norm.
+        centers : bool
+            Interpretation of x and y.
+
+        Returns
+        -------
+        matplotlib.collections.QuadMesh, suitable for `add_colorbar(..., mappable=mesh)`.
+        """
+        ax      = Plotter.ax(ax)
+        z       = np.asarray(z)
+        if isinstance(cmap, ColormapResult):
+            cmap, norm  = cmap.cmap, (cmap.norm if norm is None else norm)
+        if centers:
+            x, y        = Plotter._edges(x), Plotter._edges(y)
+        if norm is None:
+            fin         = z[np.isfinite(z)]
+            norm        = Plotter.get_norm(scale, vmin, vmax, data=fin[fin > 0] if scale == 'log' else fin)
+        return ax.pcolormesh(x, y, z, cmap=cmap, norm=norm, rasterized=rasterized, zorder=zorder, **kwargs)
+
+    @staticmethod
+    def density_2d(values, bins, *, normalize: bool = True):
+        """
+        Histogram of the samples at every x position, as a matrix for `pcolormesh`.
+
+        Parameters
+        ----------
+        values : array-like, shape (n_x, n_samples) or (n_x, ...)
+            Samples at each x. Trailing axes are flattened.
+        bins : int or array-like
+            Bin edges (or number of bins, then over the range of the data) along the value axis.
+        normalize : bool
+            If True, each column sums to 1, i.e. P(value | x).
+
+        Returns
+        -------
+        dens : np.ndarray, shape (n_bins, n_x)
+        centers : np.ndarray, shape (n_bins,)
+            Bin centers, to pass as the y argument of `pcolormesh`.
+        """
+        values  = np.asarray(values)
+        values  = values.reshape(values.shape[0], -1)
+        if np.isscalar(bins):
+            bins = np.linspace(np.nanmin(values), np.nanmax(values), int(bins) + 1)
+        bins    = np.asarray(bins, dtype=float)
+        dens    = np.array([np.histogram(v, bins=bins)[0] for v in values]).T.astype(float)
+        if normalize:
+            dens /= np.maximum(dens.sum(axis=0, keepdims=True), 1.0)
+        return dens, 0.5 * (bins[1:] + bins[:-1])
+
+    @staticmethod
+    def band(ax, x, y, *, q=(5, 95), axis: int = 0, color='C0', alpha=0.3, lw=1.3, ls='-', label=None, zorder=5):
+        """
+        Median line with a percentile band of `y` along `axis` (the sample axis).
+
+        Parameters
+        ----------
+        x : array-like
+            Abscissa, length `y.shape[1 - axis]`.
+        y : array-like, 2D
+            Samples along `axis`.
+        q : (float, float)
+            Lower and upper percentile of the band.
+        """
+        y       = np.asarray(y)
+        lo, hi  = np.percentile(y, q, axis=axis)
+        Plotter.fill_between(ax, x, lo, hi, color=color, alpha=alpha, zorder=zorder - 1)
+        return Plotter.plot(ax, x, np.median(y, axis=axis), color=color, lw=lw, ls=ls, label=label, zorder=zorder)
+
+    @staticmethod
+    def bar(ax, x, height, *, width=0.8, color='C0', alpha=1.0, edgecolor=None, linewidth=0.0, bottom=0.0, label=None, label_cond=True,
+            orientation='vertical', log=False, zorder=3, **kwargs):
+        """
+        Bar chart. `orientation='horizontal'` draws horizontal bars (`height` is then the bar length).
+
+        Parameters
+        ----------
+        x : array-like
+            Bar positions.
+        height : array-like
+            Bar heights.
+        width : float
+            Bar width in data units (thickness for horizontal bars).
+        log : bool
+            Log scale on the value axis.
+
+        Returns
+        -------
+        matplotlib.container.BarContainer
+        """
+        ax          = Plotter.ax(ax)
+        color, _, _ = Plotter._resolve_style(color)
+        label_cond  = Plotter._label_cond(label, label_cond)
+        kw          = dict(left=bottom) if orientation == 'horizontal' else dict(bottom=bottom)
+        if orientation == 'horizontal':
+            out     = ax.barh(x, height, height=width, color=color, alpha=alpha, edgecolor=edgecolor, linewidth=linewidth,
+                              label=label if label_cond else '', log=log, zorder=zorder, **kw, **kwargs)
+        else:
+            out     = ax.bar(x, height, width=width, color=color, alpha=alpha, edgecolor=edgecolor, linewidth=linewidth,
+                             label=label if label_cond else '', log=log, zorder=zorder, **kw, **kwargs)
+        return out
+
+    ###################################################
+
     @staticmethod
     def contourf(ax, x, y, z, **kwargs):
         '''
@@ -2382,73 +2221,8 @@ class Plotter:
 
     #################### T I C K S ####################
 
-    @staticmethod
-    def _set_ticks_labelled(ax, which: str, ticks, labels):
-        """Set tick positions and labels, matching Matplotlib's modern idiom.
 
-        Uses the combined ``set_*ticks(positions, labels=...)`` form when
-        ``ticks`` and ``labels`` have equal length (or when ``ticks`` is None
-        and the current tick count matches). Mismatched counts fall back to
-        the historical ``set_*ticks`` + ``set_*ticklabels`` sequence, whose
-        behavior (warning or error) is delegated to Matplotlib itself.
-        """
-        set_ticks, get_ticks = (ax.set_xticks, ax.get_xticks) if which == 'x' else (ax.set_yticks, ax.get_yticks)
-        set_labels = ax.xaxis.set_ticklabels if which == 'x' else ax.yaxis.set_ticklabels
 
-        if labels is None:
-            set_ticks(ticks)
-        elif ticks is not None and len(ticks) == len(labels):
-            set_ticks(ticks, labels=labels)
-        elif ticks is None:
-            # labelled ticks without explicit positions: on current positions when matched
-            current = get_ticks()
-            if len(current) == len(labels):
-                set_ticks(current, labels=labels)
-            else:
-                set_labels(labels)
-        else:
-            set_ticks(ticks)
-            set_labels(labels)
-
-    @staticmethod
-    def set_tickparams( ax,
-                        labelsize       =   None,
-                        left            =   True,
-                        right           =   True,
-                        top             =   True,
-                        bottom          =   True,
-                        xticks          =   None,
-                        yticks          =   None,
-                        xticklabels     =   None,
-                        yticklabels     =   None,
-                        maj_tick_l      =   4,
-                        min_tick_l      =   2,
-                        **kwargs
-                        ):
-        '''
-        Sets tickparams to the desired ones.
-        - ax        :   axis to use
-        - labelsize :   fontsize
-        - left      :   whether to show the left side
-        - right     :   whether to show the right side
-        - top       :   whether to show the top side
-        - bottom    :   whether to show the bottom side
-        - xticks    :   list of xticks
-        - yticks    :   list of yticks
-        '''
-        ax = Plotter.ax(ax)
-
-        ax.tick_params(axis='both', which='major', left=left, right=right,
-                        top=top, bottom=bottom, labelsize=labelsize)
-        ax.tick_params(axis="both", which='major', left=left, right=right,
-                        top=top, bottom=bottom, direction="in",length=maj_tick_l, **kwargs)
-        ax.tick_params(axis="both", which='minor', left=left, right=right,
-                        top=top, bottom=bottom, direction="in",length=min_tick_l, **kwargs)
-
-        if xticks is not None or xticklabels is not None:
-            Plotter._set_ticks_labelled(ax, 'x', xticks, xticklabels)
-        if yticks is not None or yticklabels is not None:
-            Plotter._set_ticks_labelled(ax, 'y', yticks, yticklabels)
 
     @staticmethod
     def set_ax_params(
@@ -2468,6 +2242,8 @@ class Plotter:
             # Label positions
             xlabel_position         : Literal['top', 'bottom']              = 'bottom',
             ylabel_position         : Literal['left', 'right']              = 'left',
+            xlabel_coords           : Optional[Tuple[float, float]]         = None,
+            ylabel_coords           : Optional[Tuple[float, float]]         = None,
             # Axis limits and scales
             xlim                    : Optional[tuple]                       = None,
             ylim                    : Optional[tuple]                       = None,
@@ -2478,17 +2254,19 @@ class Plotter:
             yticks                  : Optional[Union[list, np.ndarray]]     = None,
             xticklabels             : Optional[list]                        = None,
             yticklabels             : Optional[list]                        = None,
+            xtick_opts              : Optional[dict]                        = None,
+            ytick_opts              : Optional[dict]                        = None,
             xtickpos                : Literal['top', 'bottom', 'both']      = None,
             ytickpos                : Literal['left', 'right', 'both']      = None,
-            tick_length_major       : float                                 = 4.0,
-            tick_length_minor       : float                                 = 2.0,
-            tick_width              : float                                 = 0.8,
-            tick_direction          : Literal['in', 'out', 'inout']         = 'in',
+            tick_length_major       : Optional[float]                       = None,
+            tick_length_minor       : Optional[float]                       = None,
+            tick_width              : Optional[float]                       = None,
+            tick_direction          : Optional[Literal['in', 'out', 'inout']] = None,
             # Minor ticks
             show_minor_ticks        : bool                              = True,
             minor_tick_locator      : Optional[str]                     = 'auto',  # 'auto' or 'log' for log scale
             # Grid
-            grid                    : bool                              = False,
+            grid                    : Union[bool, dict]                 = False,
             grid_axis               : Literal['both', 'x', 'y']         = 'both',
             grid_which              : Literal['major', 'minor', 'both']  = 'major',
             grid_style              : str                               = '--',
@@ -2514,6 +2292,8 @@ class Plotter:
             label_cond              : bool                              = True,
             label_pos               : dict                              = None,
             tick_pos                : dict                              = None,
+            xdecade_step            : Optional[int]                     = None,
+            ydecade_step            : Optional[int]                     = None,
             **kwargs
         ):
         r"""
@@ -2568,14 +2348,20 @@ class Plotter:
             Explicit tick positions. Leave None for matplotlib auto-ticks.
         xticklabels, yticklabels : list, optional
             Custom tick labels. Must match length of ticks if provided.
-        tick_length_major : float, default=4.0
-            Length of major ticks in points.
-        tick_length_minor : float, default=2.0
-            Length of minor ticks in points.
-        tick_width : float, default=0.8
-            Width of ticks in points.
-        tick_direction : {'in', 'out', 'inout'}, default='in'
-            Direction ticks point ('in' recommended for publication).
+        xtick_opts, ytick_opts : dict, optional
+            Keyword arguments of `Plotter.set_ticks` (`step`, `n`, `every`, `replace`, `hide`, `fmt`, ...), applied after
+            limits and scale. Example: `xtick_opts=dict(step=0.1, every=2, replace={0.5: "1/2"})`.
+        grid : bool or dict
+            A dict switches the grid on and sets `axis`, `which`, `style`, `color`, `alpha`, `linewidth` in one place.
+        xdecade_step, ydecade_step : int, optional
+            For log axes: major ticks at every `step`-th power of ten with $10^n$ labels, minor ticks at 2..9
+            (see `_setup_log_axis`). Needs the final limits, so pass `xlim` / `ylim`.
+        xlabel_coords, ylabel_coords : (float, float), optional
+            Position of the axis label in axes fractions, as in `Plotter.set_label_cords`.
+        tick_length_major, tick_length_minor, tick_width, tick_direction : float, float, float, str, optional
+            Tick style. None takes `Plotter.TICK_LENGTH_MAJOR`, `TICK_LENGTH_MINOR`, `TICK_WIDTH`
+            and `TICK_DIRECTION` (4, 2, 0.9, 'in'), the same values that `add_colorbar` uses,
+            so that ticks look alike on all axes and colorbars.
         show_minor_ticks : bool, default=True
             Whether to show minor ticks.
         minor_tick_locator : {'auto', 'log'}, default='auto'
@@ -2746,13 +2532,17 @@ class Plotter:
             if ytickpos is not None:
                 ax.yaxis.set_ticks_position(ytickpos)
 
-        # Resolve font sizes
+        # Resolve font sizes and tick style (shared defaults)
         if fontsize is None:
             fontsize        = plt.rcParams.get('font.size', 10)
         if labelsize_title is None:
             labelsize_title = fontsize + 2
         if labelsize_tick is None:
-            labelsize_tick  = max(fontsize - 2, 8)
+            labelsize_tick  = Plotter.default_labelsize(fontsize)
+        tick_length_major   = Plotter.TICK_LENGTH_MAJOR if tick_length_major is None else tick_length_major
+        tick_length_minor   = Plotter.TICK_LENGTH_MINOR if tick_length_minor is None else tick_length_minor
+        tick_width          = Plotter.TICK_WIDTH        if tick_width        is None else tick_width
+        tick_direction      = Plotter.TICK_DIRECTION    if tick_direction    is None else tick_direction
 
         # Resolve labelpad
         if isinstance(labelpad, (int, float)):
@@ -2784,6 +2574,9 @@ class Plotter:
             # Ticks
             if xticks is not None or xticklabels is not None:
                 Plotter._set_ticks_labelled(ax, 'x', xticks, xticklabels)
+
+            if xtick_opts:
+                Plotter.set_ticks(ax, 'x', **xtick_opts)
 
             # Minor ticks
             if show_minor_ticks and xscale == 'log' and minor_tick_locator == 'auto':
@@ -2817,6 +2610,9 @@ class Plotter:
             # Ticks
             if yticks is not None or yticklabels is not None:
                 Plotter._set_ticks_labelled(ax, 'y', yticks, yticklabels)
+
+            if ytick_opts:
+                Plotter.set_ticks(ax, 'y', **ytick_opts)
 
             # Minor ticks
             if show_minor_ticks and yscale == 'log' and minor_tick_locator == 'auto':
@@ -2853,7 +2649,28 @@ class Plotter:
                 direction=tick_direction
             )
 
+        # ===== LABEL COORDINATES (axes fraction) =====
+        if xlabel_coords is not None:
+            Plotter.set_label_cords(ax, 'x', *xlabel_coords)
+        if ylabel_coords is not None:
+            Plotter.set_label_cords(ax, 'y', *ylabel_coords)
+
+        # ===== DECADE-ALIGNED LOG TICKS =====
+        if xdecade_step and xscale == 'log':
+            Plotter._setup_log_axis(ax.xaxis, ax.get_xlim(), xdecade_step)
+        if ydecade_step and yscale == 'log':
+            Plotter._setup_log_axis(ax.yaxis, ax.get_ylim(), ydecade_step)
+
         # ===== GRID CONFIGURATION =====
+        if isinstance(grid, dict):          # grid=dict(axis='x', which='both', style=':', color='gray', alpha=0.3, linewidth=0.8)
+            go              = dict(grid)
+            grid            = True
+            grid_axis       = go.get('axis', grid_axis)
+            grid_which      = go.get('which', grid_which)
+            grid_style      = go.get('style', grid_style)
+            grid_color      = go.get('color', grid_color)
+            grid_alpha      = go.get('alpha', grid_alpha)
+            grid_linewidth  = go.get('linewidth', grid_linewidth)
         if grid:
             grid_kw = {
                 "axis": grid_axis,
@@ -3080,40 +2897,8 @@ class Plotter:
         if 'y' in which:
             ax.yaxis.set_label_coords(inX, inY, **kwargs)
 
-    @staticmethod
-    def _setup_log_axis(axis, limits=(), decade_step=4):
-        """Apply decade-aligned major/minor ticks for a log-scaled axis.
 
-        *axis* is a matplotlib Axis (e.g. ``ax.xaxis``). Parameters match the
-        public :meth:`setup_log_x` / :meth:`setup_log_y`.
-        """
-        lo, hi  = np.log10(limits[0]), np.log10(limits[1])
-        start   = int(np.ceil(lo / decade_step) * decade_step)
-        stop    = int(np.floor(hi / decade_step) * decade_step)
-        majors  = 10.0 ** np.arange(start, stop + 1, decade_step, dtype=float)
 
-        axis.set_major_locator(FixedLocator(majors))
-        axis.set_major_formatter(LogFormatterMathtext(base=10))  # shows 10^{n}
-        # minors at 2..9 within each decade
-        axis.set_minor_locator(LogLocator(base=10.0, subs=range(2, 10)))
-        axis.set_minor_formatter(NullFormatter())
-
-        axis.axes.tick_params(axis=axis.axis_name, which='major', length=4)
-        axis.axes.tick_params(axis=axis.axis_name, which='minor', length=2)
-
-    @staticmethod
-    def setup_log_y(ax: plt.Axes, ylims=(1e-12, 1e6), decade_step=4):
-        """Configure clean log-scale y ticks at powers of 10 with LaTeX-like labels."""
-        ax.set_yscale('log')
-        ax.set_ylim(*ylims)
-        Plotter._setup_log_axis(ax.yaxis, ylims, decade_step)
-
-    @staticmethod
-    def setup_log_x(ax: plt.Axes, xlims=(1e-12, 1e6), decade_step=4):
-        """Configure clean log-scale x ticks at powers of 10 with LaTeX-like labels."""
-        ax.set_xscale('log')
-        ax.set_xlim(*xlims)
-        Plotter._setup_log_axis(ax.xaxis, xlims, decade_step)
 
     @staticmethod
     def set_smart_lim(
@@ -4353,21 +4138,14 @@ class Plotter:
         zorder : int, default=1
             Z-order of the inset axis.
         **kwargs
-            Additional arguments passed to fig.add_axes.
+            Additional arguments passed to `Axes.inset_axes`.
 
         Returns:
-        - ax2: The inset axis.
+        - ax2: The inset axis. It is placed in fractions of the parent axis, so it follows constrained and tight layouts.
         """
-        # Create the inset axis
-        bbox    = ax.get_position()
-        fig     = ax.figure
-        inset_position = [
-            bbox.x0 + position[0] * bbox.width,
-            bbox.y0 + position[1] * bbox.height,
-            position[2] * bbox.width,
-            position[3] * bbox.height,
-        ]
-        ax2 = fig.add_axes(inset_position, **kwargs, zorder=zorder)
+        # Axes.inset_axes places the inset in parent-axes fractions, so it follows any layout engine.
+        ax      = Plotter.ax(ax)
+        ax2     = ax.inset_axes(list(position), zorder=zorder, **kwargs)
 
         if add_box:
             # Add a semi-transparent white box around the inset
@@ -4988,3 +4766,8 @@ class Plotter:
 # ---------------------------------------------
 #! EOF
 # ---------------------------------------------
+
+
+# The mixin modules call `Plotter.<method>`; hand them the finished class.
+from . import colorbars as _colorbars, ticks as _ticks   # noqa: E402
+_colorbars.Plotter = _ticks.Plotter = Plotter
