@@ -303,9 +303,7 @@ class ColorbarMixin:
         return cbar, cax
 
     @staticmethod
-    def get_colormap(values: Optional[np.ndarray] = None, vmin=None, vmax=None, *,
-            cmap='PuBu', elsecolor='blue', get_mappable: bool = False, return_mappable: Optional[bool] = None,
-            norm=None, scale='linear', **kwargs):
+    def get_colormap(values: Optional[np.ndarray] = None, vmin=None, vmax=None, *, cmap='PuBu', elsecolor='blue', get_mappable: bool = False, return_mappable: Optional[bool] = None, norm=None, scale='linear', **kwargs) -> ColormapResult:
         """
         Get a colormap for the given values.
         
