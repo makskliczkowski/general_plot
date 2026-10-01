@@ -139,3 +139,109 @@ def test_maxelems_thins_curves_and_errorbars():
 # ---------------------------------------------
 #! EOF
 # ---------------------------------------------
+
+
+def test_tick_style_shared_between_axes_and_colorbar():
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from general_plot import Plotter
+    fig, ax = plt.subplots()
+    mesh    = Plotter.pcolormesh(ax, np.arange(4), np.arange(3), np.random.rand(3, 4), scale="linear")
+    Plotter.set_ax_params(ax)
+    cbar, _ = Plotter.add_colorbar(fig, [0.9, 0.1, 0.02, 0.8], mappable=mesh)
+    tx, tc  = ax.xaxis.get_major_ticks()[0].tick1line, cbar.ax.yaxis.get_major_ticks()[0].tick2line
+    assert tx.get_markersize() == tc.get_markersize() == Plotter.TICK_LENGTH_MAJOR
+    assert tx.get_markeredgewidth() == tc.get_markeredgewidth() == Plotter.TICK_WIDTH
+    plt.close(fig)
+
+
+def test_pcolormesh_band_bar_smoke():
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from general_plot import Plotter
+    fig, ax = plt.subplots()
+    z       = np.random.rand(5, 7) + 0.1
+    mesh    = Plotter.pcolormesh(ax, np.arange(7), np.linspace(0, 1, 5), z, scale="log")
+    assert mesh.get_array().shape == z.shape and mesh.norm.vmin > 0
+    Plotter.band(ax, np.arange(7), np.random.rand(20, 7))
+    Plotter.bar(ax, [1, 2, 3], [0.5, 0.2, 0.1], log=True)
+    plt.close(fig)
+
+
+def test_add_colorbar_placement_and_mappable_forms():
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.colors as mcolors
+    import matplotlib.pyplot as plt
+    from general_plot import Plotter
+    fig, axs = plt.subplots(1, 2)
+    norm     = mcolors.LogNorm(1e-3, 1)
+    c1, _    = Plotter.add_colorbar(fig, ax=axs, mappable=norm, cmap="Blues", label="a")          # norm only, next to axes
+    c2, cax  = Plotter.add_colorbar(fig, [0.95, 0.1, 0.02, 0.8], norm=norm)                       # norm kwarg, explicit position
+    c3, _    = Plotter.add_colorbar(fig, ax=axs[0], mappable=np.random.rand(3, 3))                # array
+    assert c1.norm is norm and c2.ax is cax
+    try:
+        Plotter.add_colorbar(fig, mappable=norm)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("expected ValueError without pos and ax")
+    plt.close(fig)
+
+
+def test_set_ticks_every_replace_hide():
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from general_plot import Plotter
+    fig, ax = plt.subplots()
+    ax.set_xlim(0, 0.5)
+    t, lab = Plotter.set_ticks(ax, 'x', step=0.1, every=2, replace={0.4: "x"})
+    assert np.allclose(t, np.arange(6) * 0.1) and lab == ["0", "", "0.2", "", "x", ""]
+    _, lab = Plotter.set_ticks(ax, 'x', [0, .1, .2], hide=[.1], replace={0.2: "z"})
+    assert lab == ["0", "", "z"]
+    Plotter.set_ax_params(ax, xtick_opts=dict(step=0.25), xlabel="a", xlabel_coords=(0.5, -0.1))
+    assert [l.get_text() for l in ax.get_xticklabels()] == ["0", "0.25", "0.5"]
+    assert ax.xaxis.get_label().get_position()[1] == -0.1
+    plt.close(fig)
+
+
+def test_colormap_result_feeds_colorbar_and_pcolormesh():
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from general_plot import Plotter
+    cm          = Plotter.get_colormap(vmin=1e-3, vmax=1, cmap="Blues", scale="log")
+    getcolor, colors, norm = cm                                            # unpacking is unchanged
+    assert len(cm) == 3 and cm(0.1) == getcolor(0.1)
+    fig, ax = plt.subplots()
+    mesh    = Plotter.pcolormesh(ax, np.arange(3), np.arange(2), np.full((2, 3), 0.1), cmap=cm)
+    assert mesh.norm is norm
+    cbar, _ = Plotter.add_colorbar(fig, ax=ax, mappable=cm)
+    assert cbar.norm is norm
+    plt.close(fig)
+
+
+def test_letter_density_inset_log_grid():
+    import warnings
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from general_plot import Plotter
+    fig, axs = Plotter.get_subplots(1, 2, sizex=6, sizey=3, constrained_layout=True)
+    Plotter.label_panels(axs, ["A", "B"])
+    assert axs[0].texts[0].get_text() == "(a) A" and axs[1].texts[0].get_text() == "(b) B"
+    dens, c = Plotter.density_2d(np.random.rand(5, 100), np.linspace(0, 1, 11))
+    assert dens.shape == (10, 5) and np.allclose(dens.sum(axis=0), 1) and len(c) == 10
+    ins = Plotter.get_inset(axs[0], [0.5, 0.5, 0.4, 0.4])
+    assert ins.get_position().width < axs[0].get_position().width
+    Plotter.set_ax_params(axs[1], yscale="log", ylim=(1e-8, 1e4), ydecade_step=4, grid=dict(axis="y", style=":"))
+    assert len(axs[1].get_yticks()) >= 3
+    fig2, ax2 = plt.subplots(layout="tight")
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        Plotter.add_colorbar(fig2, ax=ax2, norm=matplotlib.colors.Normalize(0, 1))
+    assert any("tight_layout" in str(x.message) for x in w)
+    plt.close("all")
