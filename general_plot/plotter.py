@@ -1712,6 +1712,28 @@ class Plotter(ColorbarMixin, TickMixin):
         )
 
     @staticmethod
+    def phase_spans(ax, phases, alpha=0.06, label_y=1.01, fontsize=8, **text_kwargs):
+        """
+        Draw ``(start, length, label, color)`` phase spans and labels.
+        """
+        ax      = Plotter.ax(ax)
+        artists = []
+        for start, length, label, color in phases:
+            if not length:
+                continue
+            artists.append(ax.axvspan(start, start + length, color=color, alpha=alpha))
+            artists.append(ax.text(start + length / 2, label_y, label, transform=ax.get_xaxis_transform(), ha='center', fontsize=fontsize, **text_kwargs))
+        return artists
+
+    @staticmethod
+    def plot_with_uncertainty(ax, x, y, error, color=None, alpha=0.15, **plot_kwargs):
+        """Plot a line and shade ``y +/- error`` using the same color."""
+        ax          = Plotter.ax(ax)
+        Plotter.plot(ax, x, y, color=color, **plot_kwargs)
+        line_color  = ax.lines[-1].get_color() if color is None else color
+        return Plotter.fill_between(ax, x, np.asarray(y) - error, np.asarray(y) + error, color=line_color, alpha=alpha)
+
+    @staticmethod
     def fill_between(
         ax,
         x,
@@ -1744,7 +1766,7 @@ class Plotter(ColorbarMixin, TickMixin):
             fill_between(ax, x_data, y1_data, y2_data, color='red', alpha=0.3)
         """
         ax = Plotter.ax(ax)
-        ax.fill_between(
+        return ax.fill_between(
             x, y1, y2, color=color, alpha=alpha,
             where=where, interpolate=interpolate, step=step,
             linewidth=linewidth, edgecolor=edgecolor,
