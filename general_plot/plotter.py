@@ -1128,15 +1128,15 @@ class Plotter(ColorbarMixin, TickMixin):
                 "lower right": (0.95 - offset_x, 0.05 + offset_y)
             }
 
-            fig = ax.figure
-            renderer = fig.canvas.get_renderer()
+            fig                 = ax.figure
+            renderer            = fig.canvas.get_renderer()
 
             # Get the data bounding box
-            data_bbox = ax.transAxes.transform_bbox(ax.get_position())  # Use axis fraction for bounds
+            data_bbox           = ax.transAxes.transform_bbox(ax.get_position())  # Use axis fraction for bounds
 
             # Track text extents for all corners
-            text_extents = {}
-            adjusted_corners = {}
+            text_extents        = {}
+            adjusted_corners    = {}
             for corner, (cx, cy) in corners.items():
                 text = ax.annotate(
                     elem, xy=(cx, cy), fontsize=fontsize,
