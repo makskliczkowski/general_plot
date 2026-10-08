@@ -2353,7 +2353,8 @@ class Plotter(ColorbarMixin, TickMixin):
         labelsize_title : int, optional
             Font size for title. If None, ``axes.titlesize`` of the active style, or `fontsize` when that is given.
         labelsize_tick : int, optional
-            Font size for tick labels. If None, ``xtick.labelsize`` of the active style, or `fontsize` - 1 when that is given.
+            Font size of the major and minor tick labels. If None, ``xtick.labelsize`` and ``ytick.labelsize`` of the active style, or
+            `fontsize` - 1 when that is given (no lower floor).
         labelpad : float or dict, default=0.0
             Padding between label and axis. Can be {'x': val, 'y': val}.
         title_pad : float, default=10.0
@@ -2567,8 +2568,12 @@ class Plotter(ColorbarMixin, TickMixin):
         # same size and the ticks one point smaller, the ratios of the publication style.
         if labelsize_title is None:
             labelsize_title = Plotter._rc_size('axes.titlesize') if fontsize is None else fontsize
-        if labelsize_tick is None:
-            labelsize_tick  = Plotter.default_labelsize(fontsize)
+        # Tick labels per axis: the given size, fontsize - 1, or xtick/ytick.labelsize of the style. Minor labels (e.g. on a log axis that
+        # spans less than a decade) get the same size as the major ones.
+        if labelsize_tick is not None or fontsize is not None:
+            tick_sizes      = dict.fromkeys(('x', 'y'), Plotter.default_labelsize(fontsize) if labelsize_tick is None else labelsize_tick)
+        else:
+            tick_sizes      = {'x': Plotter._rc_size('xtick.labelsize'), 'y': Plotter._rc_size('ytick.labelsize')}
         if fontsize is None:
             fontsize        = Plotter._rc_size('axes.labelsize')
         tick_length_major   = Plotter.TICK_LENGTH_MAJOR if tick_length_major is None else tick_length_major
@@ -2610,14 +2615,9 @@ class Plotter(ColorbarMixin, TickMixin):
             if xtick_opts:
                 Plotter.set_ticks(ax, 'x', **xtick_opts)
 
-            # Minor ticks: never labelled on a log axis (a decade skipped by the major ticks would otherwise get a label at the rcParams
-            # size); none at all when show_minor_ticks is False.
+            # Minor ticks
             if show_minor_ticks and xscale == 'log' and minor_tick_locator == 'auto':
                 ax.xaxis.set_minor_locator(plt.LogLocator(base=10.0, subs='all', numticks=100))
-            if not show_minor_ticks:
-                ax.xaxis.set_minor_locator(mticker.NullLocator())
-            if xscale == 'log':
-                ax.xaxis.set_minor_formatter(mticker.NullFormatter())
 
             # Inversion
             if invert_xaxis:
@@ -2651,14 +2651,9 @@ class Plotter(ColorbarMixin, TickMixin):
             if ytick_opts:
                 Plotter.set_ticks(ax, 'y', **ytick_opts)
 
-            # Minor ticks: never labelled on a log axis (a decade skipped by the major ticks would otherwise get a label at the rcParams
-            # size); none at all when show_minor_ticks is False.
+            # Minor ticks
             if show_minor_ticks and yscale == 'log' and minor_tick_locator == 'auto':
                 ax.yaxis.set_minor_locator(plt.LogLocator(base=10.0, subs='all', numticks=100))
-            if not show_minor_ticks:
-                ax.yaxis.set_minor_locator(mticker.NullLocator())
-            if yscale == 'log':
-                ax.yaxis.set_minor_formatter(mticker.NullFormatter())
 
             # Inversion
             if invert_yaxis:
@@ -2679,9 +2674,10 @@ class Plotter(ColorbarMixin, TickMixin):
             length=tick_length_major,
             width=tick_width,
             direction=tick_direction,
-            labelsize=labelsize_tick,
             **kwargs
         )
+        for axis_name, size in tick_sizes.items():
+            ax.tick_params(axis=axis_name, which='both', labelsize=size)
         if show_minor_ticks:
             ax.tick_params(
                 axis='both',
@@ -2702,6 +2698,11 @@ class Plotter(ColorbarMixin, TickMixin):
             Plotter._setup_log_axis(ax.xaxis, ax.get_xlim(), xdecade_step)
         if ydecade_step and yscale == 'log':
             Plotter._setup_log_axis(ax.yaxis, ax.get_ylim(), ydecade_step)
+        # No minor ticks at all, also after the decade setup above, which installs its own minor locator.
+        if not show_minor_ticks:
+            for axis_name, axis in (('x', ax.xaxis), ('y', ax.yaxis)):
+                if axis_name in which or 'both' in which:
+                    axis.set_minor_locator(mticker.NullLocator())
 
         # ===== GRID CONFIGURATION =====
         if isinstance(grid, dict):          # grid=dict(axis='x', which='both', style=':', color='gray', alpha=0.3, linewidth=0.8)
