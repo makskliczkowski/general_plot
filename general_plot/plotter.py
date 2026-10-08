@@ -89,7 +89,7 @@ class Plotter(ColorbarMixin, TickMixin):
     TICK_DIRECTION      = 'in'
 
     # Default style of panel letters "(a)", "(b)", ... used by `letter` and `label_panels`.
-    LETTER_STYLE        = dict(x=0.04, y=0.95, fontsize=10, va='top')
+    LETTER_STYLE        = dict(x=0.04, y=0.95, fontsize=None, va='top')          # fontsize None: font.size of the active style
 
     @staticmethod
     def _rc_size(key: str) -> float:
@@ -1202,7 +1202,7 @@ class Plotter(ColorbarMixin, TickMixin):
         iter        : int,
         x           : float = 0,
         y           : float = 0,
-        fontsize    = 12,
+        fontsize    = None,
         xycoords    = 'axes fraction',
         addit       = '',
         condition   = True,
@@ -1226,7 +1226,7 @@ class Plotter(ColorbarMixin, TickMixin):
         y: 
             y coordinate
         fontsize: 
-            fontsize 
+            fontsize; None takes font.size of the active style
         xycoords: 
             how to interpret the coordinates (from MPL)
         addit: 
@@ -2610,9 +2610,14 @@ class Plotter(ColorbarMixin, TickMixin):
             if xtick_opts:
                 Plotter.set_ticks(ax, 'x', **xtick_opts)
 
-            # Minor ticks
+            # Minor ticks: never labelled on a log axis (a decade skipped by the major ticks would otherwise get a label at the rcParams
+            # size); none at all when show_minor_ticks is False.
             if show_minor_ticks and xscale == 'log' and minor_tick_locator == 'auto':
                 ax.xaxis.set_minor_locator(plt.LogLocator(base=10.0, subs='all', numticks=100))
+            if not show_minor_ticks:
+                ax.xaxis.set_minor_locator(mticker.NullLocator())
+            if xscale == 'log':
+                ax.xaxis.set_minor_formatter(mticker.NullFormatter())
 
             # Inversion
             if invert_xaxis:
@@ -2646,9 +2651,14 @@ class Plotter(ColorbarMixin, TickMixin):
             if ytick_opts:
                 Plotter.set_ticks(ax, 'y', **ytick_opts)
 
-            # Minor ticks
+            # Minor ticks: never labelled on a log axis (a decade skipped by the major ticks would otherwise get a label at the rcParams
+            # size); none at all when show_minor_ticks is False.
             if show_minor_ticks and yscale == 'log' and minor_tick_locator == 'auto':
                 ax.yaxis.set_minor_locator(plt.LogLocator(base=10.0, subs='all', numticks=100))
+            if not show_minor_ticks:
+                ax.yaxis.set_minor_locator(mticker.NullLocator())
+            if yscale == 'log':
+                ax.yaxis.set_minor_formatter(mticker.NullFormatter())
 
             # Inversion
             if invert_yaxis:

@@ -132,7 +132,7 @@ class TickMixin:
         '''
         Sets tickparams to the desired ones.
         - ax        :   axis to use
-        - labelsize :   fontsize
+        - labelsize :   fontsize; None keeps the current size
         - left      :   whether to show the left side
         - right     :   whether to show the right side
         - top       :   whether to show the top side
@@ -142,8 +142,8 @@ class TickMixin:
         '''
         ax = Plotter.ax(ax)
 
-        ax.tick_params(axis='both', which='major', left=left, right=right,
-                        top=top, bottom=bottom, labelsize=labelsize)
+        # labelsize=None keeps the current tick-label size; passing None to tick_params would reset it to the rcParams default.
+        ax.tick_params(axis='both', which='major', left=left, right=right, top=top, bottom=bottom, **({} if labelsize is None else dict(labelsize=labelsize)))
         ax.tick_params(axis="both", which='major', left=left, right=right,
                         top=top, bottom=bottom, direction="in",length=maj_tick_l, **kwargs)
         ax.tick_params(axis="both", which='minor', left=left, right=right,
