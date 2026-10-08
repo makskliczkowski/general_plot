@@ -92,10 +92,19 @@ class Plotter(ColorbarMixin, TickMixin):
     LETTER_STYLE        = dict(x=0.04, y=0.95, fontsize=10, va='top')
 
     @staticmethod
+    def _rc_size(key: str) -> float:
+        """An rcParams font size in points; named sizes such as 'medium' are resolved against font.size."""
+        from matplotlib.font_manager import FontProperties
+        return FontProperties(size=plt.rcParams[key]).get_size_in_points()
+
+    @staticmethod
     def default_labelsize(fontsize: Optional[float] = None) -> float:
-        """Tick-label size used by `set_ax_params` and `add_colorbar` when none is given."""
-        fontsize = plt.rcParams.get('font.size', 10) if fontsize is None else fontsize
-        return max(fontsize - 2, 8)
+        """Tick-label size used by `set_ax_params` and `add_colorbar` when none is given.
+
+        Without ``fontsize`` it is ``xtick.labelsize`` of the active style (``configure_style``); with one it is ``fontsize - 1``, the
+        ratio of the publication style.
+        """
+        return Plotter._rc_size('xtick.labelsize') if fontsize is None else fontsize - 1
 
     def __init__(self, default_cmap='viridis', font_size=12, dpi=200):
         """
@@ -2342,9 +2351,9 @@ class Plotter(ColorbarMixin, TickMixin):
         fontsize : int, optional
             Default font size for labels (overridable per-element).
         labelsize_title : int, optional
-            Font size for title. If None, uses `fontsize` + 2.
+            Font size for title. If None, ``axes.titlesize`` of the active style, or `fontsize` when that is given.
         labelsize_tick : int, optional
-            Font size for tick labels. If None, uses `fontsize` - 2.
+            Font size for tick labels. If None, ``xtick.labelsize`` of the active style, or `fontsize` - 1 when that is given.
         labelpad : float or dict, default=0.0
             Padding between label and axis. Can be {'x': val, 'y': val}.
         title_pad : float, default=10.0
@@ -2554,13 +2563,14 @@ class Plotter(ColorbarMixin, TickMixin):
             if ytickpos is not None:
                 ax.yaxis.set_ticks_position(ytickpos)
 
-        # Resolve font sizes and tick style (shared defaults)
-        if fontsize is None:
-            fontsize        = plt.rcParams.get('font.size', 10)
+        # Resolve font sizes: the active style (rcParams of configure_style) unless a size is given; a given fontsize sets the title to the
+        # same size and the ticks one point smaller, the ratios of the publication style.
         if labelsize_title is None:
-            labelsize_title = fontsize + 2
+            labelsize_title = Plotter._rc_size('axes.titlesize') if fontsize is None else fontsize
         if labelsize_tick is None:
             labelsize_tick  = Plotter.default_labelsize(fontsize)
+        if fontsize is None:
+            fontsize        = Plotter._rc_size('axes.labelsize')
         tick_length_major   = Plotter.TICK_LENGTH_MAJOR if tick_length_major is None else tick_length_major
         tick_length_minor   = Plotter.TICK_LENGTH_MINOR if tick_length_minor is None else tick_length_minor
         tick_width          = Plotter.TICK_WIDTH        if tick_width        is None else tick_width
