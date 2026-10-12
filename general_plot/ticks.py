@@ -100,13 +100,25 @@ class TickMixin:
                 cur     = np.asarray(axis.get_majorticklocs())
                 ticks   = cur[(cur >= lo - tol * abs(hi - lo)) & (cur <= hi + tol * abs(hi - lo))]
         ticks       = np.asarray(ticks, dtype=float) + 0.0      # +0.0 turns -0.0 into 0.0
-        out         = list(labels) if labels is not None else [fmt.format(t) for t in ticks]
+        if labels is not None:
+            out     = list(labels)
+        else:
+            is_log  = (ax.get_xscale() == 'log') if which == 'x' else (ax.get_yscale() == 'log')
+            fmt_obj = axis.get_major_formatter()
+            if is_log and fmt == '{:g}' and fmt_obj is not None and not isinstance(fmt_obj, mticker.NullFormatter):
+                out = [fmt_obj(t) for t in ticks]
+            else:
+                out = [fmt.format(t) for t in ticks]
         if len(out) != len(ticks):
             raise ValueError(f"{len(out)} labels for {len(ticks)} ticks.")
         if every is not None:
             out     = [l if (i - offset) % every == 0 else '' for i, l in enumerate(out)]
         scale       = max(abs(lo), abs(hi), 1e-300)
-        near        = lambda t, v: abs(t - v) <= tol * scale + 1e-12 * abs(v)
+        is_log_scale= (ax.get_xscale() == 'log') if which == 'x' else (ax.get_yscale() == 'log')
+        if is_log_scale:
+            near    = lambda t, v: abs(t - v) <= 1e-5 * max(abs(t), abs(v), 1e-300)
+        else:
+            near    = lambda t, v: abs(t - v) <= tol * scale + 1e-12 * abs(v)
         for pos in (hide if hide is not None else []):
             out     = ['' if near(t, pos) else l for t, l in zip(ticks, out)]
         for pos, text in (replace or {}).items():
@@ -117,37 +129,52 @@ class TickMixin:
     @staticmethod
     def set_tickparams( ax,
                         labelsize       =   None,
-                        left            =   True,
-                        right           =   True,
-                        top             =   True,
-                        bottom          =   True,
+                        left            =   None,
+                        right           =   None,
+                        top             =   None,
+                        bottom          =   None,
                         xticks          =   None,
                         yticks          =   None,
                         xticklabels     =   None,
                         yticklabels     =   None,
-                        maj_tick_l      =   4,
-                        min_tick_l      =   2,
+                        maj_tick_l      =   None,
+                        min_tick_l      =   None,
                         **kwargs
                         ):
-        '''
-        Sets tickparams to the desired ones.
-        - ax        :   axis to use
-        - labelsize :   fontsize; None keeps the current size
-        - left      :   whether to show the left side
-        - right     :   whether to show the right side
-        - top       :   whether to show the top side
-        - bottom    :   whether to show the bottom side
-        - xticks    :   list of xticks
-        - yticks    :   list of yticks
-        '''
+        """
+        Configure tick parameters and positions.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes
+            Target axis.
+        labelsize : float, optional
+            Font size for tick labels; None preserves the current size.
+        left, right, top, bottom : bool, optional
+            Whether to show ticks on the corresponding side; None preserves the current state.
+        xticks, yticks : list, optional
+            Tick positions.
+        xticklabels, yticklabels : list, optional
+            Tick labels.
+        maj_tick_l, min_tick_l : float, optional
+            Major and minor tick lengths. None preserves/adapts to axis type (smaller for insets).
+        **kwargs
+            Additional keyword arguments forwarded to `ax.tick_params`.
+        """
         ax = Plotter.ax(ax)
+        is_inset = getattr(ax, '_is_inset', False) or (getattr(ax, '_axes_locator', None) is not None)
+
+        if maj_tick_l is None:
+            maj_tick_l = 2.5 if is_inset else Plotter.TICK_LENGTH_MAJOR
+        if min_tick_l is None:
+            min_tick_l = 1.2 if is_inset else Plotter.TICK_LENGTH_MINOR
+
+        side_kw = {k: v for k, v in [('left', left), ('right', right), ('top', top), ('bottom', bottom)] if v is not None}
 
         # labelsize=None keeps the current tick-label size; passing None to tick_params would reset it to the rcParams default.
-        ax.tick_params(axis='both', which='major', left=left, right=right, top=top, bottom=bottom, **({} if labelsize is None else dict(labelsize=labelsize)))
-        ax.tick_params(axis="both", which='major', left=left, right=right,
-                        top=top, bottom=bottom, direction="in",length=maj_tick_l, **kwargs)
-        ax.tick_params(axis="both", which='minor', left=left, right=right,
-                        top=top, bottom=bottom, direction="in",length=min_tick_l, **kwargs)
+        ax.tick_params(axis='both', which='major', **side_kw, **({} if labelsize is None else dict(labelsize=labelsize)))
+        ax.tick_params(axis="both", which='major', direction="in", length=maj_tick_l, **side_kw, **kwargs)
+        ax.tick_params(axis="both", which='minor', direction="in", length=min_tick_l, **side_kw, **kwargs)
 
         if xticks is not None or xticklabels is not None:
             Plotter._set_ticks_labelled(ax, 'x', xticks, xticklabels)
@@ -155,7 +182,7 @@ class TickMixin:
             Plotter._set_ticks_labelled(ax, 'y', yticks, yticklabels)
 
     @staticmethod
-    def _setup_log_axis(axis, limits=(), decade_step=4):
+    def _setup_log_axis(axis, limits=(), decade_step=4, length_major=None, length_minor=None, width=None):
         """Apply decade-aligned major/minor ticks for a log-scaled axis.
 
         *axis* is a matplotlib Axis (e.g. ``ax.xaxis``). Parameters match the
@@ -172,8 +199,12 @@ class TickMixin:
         axis.set_minor_locator(LogLocator(base=10.0, subs=range(2, 10)))
         axis.set_minor_formatter(NullFormatter())
 
-        axis.axes.tick_params(axis=axis.axis_name, which='major', length=Plotter.TICK_LENGTH_MAJOR, width=Plotter.TICK_WIDTH)
-        axis.axes.tick_params(axis=axis.axis_name, which='minor', length=Plotter.TICK_LENGTH_MINOR, width=Plotter.TICK_WIDTH)
+        l_maj = Plotter.TICK_LENGTH_MAJOR if length_major is None else length_major
+        l_min = Plotter.TICK_LENGTH_MINOR if length_minor is None else length_minor
+        w = Plotter.TICK_WIDTH if width is None else width
+
+        axis.axes.tick_params(axis=axis.axis_name, which='major', length=l_maj, width=w)
+        axis.axes.tick_params(axis=axis.axis_name, which='minor', length=l_min, width=w)
 
     @staticmethod
     def setup_log_y(ax: plt.Axes, ylims=(1e-12, 1e6), decade_step=4):
