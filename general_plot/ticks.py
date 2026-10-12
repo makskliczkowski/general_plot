@@ -50,13 +50,14 @@ class TickMixin:
             set_labels(labels)
 
     @staticmethod
-    def set_ticks(ax, which: str = 'x', ticks=None, *, step=None, n=None, every=None, offset: int = 0, labels=None, replace=None, hide=None, fmt: str = '{:g}', tol: float = 1e-9):
+    def set_ticks(ax, which: str = 'x', ticks=None, *, step=None, n=None, every=None, offset: int = 0, labels=None, replace=None, hide=None, hide_ticks=None, fmt: str = '{:g}', tol: float = 1e-9):
         """
         Set tick positions and labels in one call, without writing the label list by hand.
 
         Positions: `ticks`; else multiples of `step` inside the current limits; else `n` equally spaced ticks
-        over the limits; else the current ticks inside the limits.
-        Labels: `labels` if given, else `fmt.format(tick)`. Then `every`, `replace` and `hide` act on them.
+        over the limits; else the current ticks inside the limits. `hide_ticks` removes selected major tick
+        positions. Labels: `labels` if given, else `fmt.format(tick)`. Then `every`, `replace` and `hide`
+        act on the labels; `hide` keeps the tick mark.
 
         Parameters
         ----------
@@ -73,6 +74,9 @@ class TickMixin:
             {position: label}. Replaces the label of the tick at that position, for example {0.5: "1/2"}.
         hide : array-like, optional
             Positions whose labels are emptied. The ticks stay.
+        hide_ticks : array-like, optional
+            Major tick positions to remove, along with their labels. Minor ticks are controlled separately
+            by `show_minor_ticks` in `set_ax_params`.
         labels : list of str, optional
             Explicit labels, same length as the ticks.
         fmt : str
@@ -91,6 +95,7 @@ class TickMixin:
         ax          = Plotter.ax(ax)
         axis        = ax.xaxis if which == 'x' else ax.yaxis
         lo, hi      = sorted(ax.get_xlim() if which == 'x' else ax.get_ylim())
+        scale       = max(abs(lo), abs(hi), 1e-300)
         if ticks is None:
             if step is not None:
                 ticks   = np.arange(np.ceil(lo / step - tol), np.floor(hi / step + tol) + 1) * step
@@ -99,9 +104,21 @@ class TickMixin:
             else:
                 cur     = np.asarray(axis.get_majorticklocs())
                 ticks   = cur[(cur >= lo - tol * abs(hi - lo)) & (cur <= hi + tol * abs(hi - lo))]
+        else:
+            ticks = np.asarray(ticks, dtype=float)
+            if step is not None:
+                # Filter provided ticks to those matching multiples of step (or within tolerance)
+                ticks = ticks[np.isclose(np.fmod(np.abs(ticks), step), 0, atol=tol * scale) |
+                              np.isclose(np.fmod(np.abs(ticks), step), step, atol=tol * scale)]
+            elif n is not None and len(ticks) > n:
+                idx = np.round(np.linspace(0, len(ticks) - 1, n)).astype(int)
+                ticks = ticks[idx]
         ticks       = np.asarray(ticks, dtype=float) + 0.0      # +0.0 turns -0.0 into 0.0
         if labels is not None:
             out     = list(labels)
+            if len(out) != len(ticks):
+                # If labels matched original ticks before filtering, filter labels identically
+                raise ValueError(f"{len(out)} labels for {len(ticks)} ticks.")
         else:
             is_log  = (ax.get_xscale() == 'log') if which == 'x' else (ax.get_yscale() == 'log')
             fmt_obj = axis.get_major_formatter()
@@ -111,14 +128,17 @@ class TickMixin:
                 out = [fmt.format(t) for t in ticks]
         if len(out) != len(ticks):
             raise ValueError(f"{len(out)} labels for {len(ticks)} ticks.")
-        if every is not None:
+        if every is not None and every > 1:
             out     = [l if (i - offset) % every == 0 else '' for i, l in enumerate(out)]
-        scale       = max(abs(lo), abs(hi), 1e-300)
         is_log_scale= (ax.get_xscale() == 'log') if which == 'x' else (ax.get_yscale() == 'log')
         if is_log_scale:
             near    = lambda t, v: abs(t - v) <= 1e-5 * max(abs(t), abs(v), 1e-300)
         else:
             near    = lambda t, v: abs(t - v) <= tol * scale + 1e-12 * abs(v)
+        for pos in (hide_ticks if hide_ticks is not None else []):
+            keep    = np.asarray([not near(t, pos) for t in ticks], dtype=bool)
+            ticks   = ticks[keep]
+            out     = [label for label, keep_tick in zip(out, keep) if keep_tick]
         for pos in (hide if hide is not None else []):
             out     = ['' if near(t, pos) else l for t, l in zip(ticks, out)]
         for pos, text in (replace or {}).items():

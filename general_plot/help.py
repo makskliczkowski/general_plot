@@ -55,6 +55,7 @@ Plotting Primitives
 - Plotter.pcolormesh(ax, x, y, z, cmap='viridis', scale='linear', vmin=None, vmax=None, ...)  (x, y: cell centers)
 - Plotter.band(ax, x, y, q=(5, 95), axis=0, ...)  (median line + percentile band)
 - Plotter.set_ticks(ax, 'x', step=0.1, every=2, replace={0.5: '1/2'}, hide=[...])  (also via set_ax_params(xtick_opts=dict(...)))
+- Plotter.set_log_ticks(ax, 'y', ticks=[...], labels=[...], hide_ticks=[...], show_minor_ticks=False)
 - Plotter.get_colormap(...) result can be passed directly to add_colorbar(mappable=...) and pcolormesh(cmap=...)
 - set_ax_params(xlabel_coords=(x, y), ylabel_coords=(x, y))  (label position in axes fractions)
 - Plotter.get_norm(scale='linear', vmin, vmax, data=None)
@@ -63,11 +64,11 @@ Plotting Primitives
 - Plotter.hline(ax, val, ...), Plotter.vline(ax, val, ...)
 """,
     "axis": """
-Axis Formatting & Parameters (set_ax_params)
---------------------------------------------
-Fine-grained control over all axis properties in a single call:
+Axis Formatting & Parameters (Plotter.set / set_ax_params)
+---------------------------------------------------------
+Fine-grained control over all axis properties in a single call (`Plotter.set` is an alias for `set_ax_params`):
 
->>> Plotter.set_ax_params(
+>>> Plotter.set(
 ...     ax,
 ...     xlabel=r'$x$ (m)',
 ...     ylabel=r'$E$ (eV)',
@@ -83,7 +84,17 @@ Fine-grained control over all axis properties in a single call:
 ...     spine_width=1.0,
 ... )
 
+Non-exclusive tick control:
+- `xticks`/`yticks` can be combined with `every`, `step`, `replace`, and `hide`:
+  * `Plotter.set(ax, xticks=[0, 1, 2, 3, 4], every=2)` (labels 0, 2, 4; keeps all ticks)
+  * `Plotter.set(ax, xticks=[0, 0.5, 1], replace={0: "min", 1: "max"})`
+  * `Plotter.set(ax, xticks=[0, 1, 2, 3], hide=[1, 2])`
+  * For log scales: `every=2` automatically sets decade stepping ($10^{-2}, 10^0, 10^2$).
+
 Additional axis helpers:
+- Plotter.set(ax, ...) / Plotter.set_ax_params(ax, ...)
+- Plotter.set_ticks(ax, 'x', ticks=[...], every=2, replace={...}, hide=[...])
+- Plotter.set_log_ticks(ax, 'y', ticks=[...], hide_ticks=[...], show_minor_ticks=False)
 - Plotter.set_xlabel(ax, label, ...)
 - Plotter.set_ylabel(ax, label, ...)
 - Plotter.set_smart_lim(ax, x_data, y_data, pad=0.05)

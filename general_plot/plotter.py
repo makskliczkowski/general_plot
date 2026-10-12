@@ -62,7 +62,7 @@ class Plotter(ColorbarMixin, TickMixin):
     Main Categories
     ---------------
     **Plotting Methods**    : plot, scatter, tripcolor_field, semilogy, semilogx, loglog, errorbar, fill_between, band, histogram, density_2d, bar, pcolormesh
-    **Axis Setup**          : set_ax_params, set_ticks, set_tickparams, setup_log_x, setup_log_y
+    **Axis Setup**          : set_ax_params, set_ticks, set_log_ticks, set_tickparams, setup_log_x, setup_log_y
     **Annotations**         : set_annotate, set_annotate_letter, letter, label_panels, set_arrow
     **Colorbars**           : add_colorbar, get_colormap, get_norm, discrete_colormap
     **Layouts**             : get_subplots, get_grid, get_inset
@@ -2280,8 +2280,8 @@ class Plotter(ColorbarMixin, TickMixin):
             # Axis limits and scales
             xlim                    : Optional[tuple]                       = None,
             ylim                    : Optional[tuple]                       = None,
-            xscale                  : Literal['linear', 'log', 'symlog']    = 'linear',
-            yscale                  : Literal['linear', 'log', 'symlog']    = 'linear',
+            xscale                  : Optional[Literal['linear', 'log', 'symlog']] = None,
+            yscale                  : Optional[Literal['linear', 'log', 'symlog']] = None,
             # Ticks and tick labels
             xticks                  : Optional[Union[list, np.ndarray]]     = None,
             yticks                  : Optional[Union[list, np.ndarray]]     = None,
@@ -2403,9 +2403,10 @@ class Plotter(ColorbarMixin, TickMixin):
         **Tick Configuration**
         
         xticks, yticks : list or np.ndarray, optional
-            Explicit tick positions. Leave None for matplotlib auto-ticks.
+            Explicit major tick positions. Leave None for matplotlib auto-ticks.
         xticklabels, yticklabels : list, optional
-            Custom tick labels. Must match length of ticks if provided.
+            Custom major tick labels. Must match length of ticks if provided. An empty string hides
+            only that label; the corresponding tick mark remains.
         xtickpos, ytickpos : {'top', 'bottom', 'left', 'right', 'both', 'default', 'none'}, optional
             Position of ticks and their labels on x- and y-axes. Aliases: `xtick_pos`, `ytick_pos`.
         tick_pos : dict, tuple or str, optional
@@ -2422,7 +2423,8 @@ class Plotter(ColorbarMixin, TickMixin):
         xdecade_step, ydecade_step : int, optional
             For log axes: major ticks at every `step`-th power of ten with $10^n$ labels, minor ticks at 2..9.
         xtick_opts, ytick_opts : dict, optional
-            Additional keyword arguments forwarded to `Plotter.set_ticks`.
+            Additional keyword arguments forwarded to `Plotter.set_ticks`. Use `hide_ticks` to remove
+            selected major marks; use `show_minor_ticks=False` to remove minor marks as well.
         grid : bool or dict
             A dict switches the grid on and sets `axis`, `which`, `style`, `color`, `alpha`, `linewidth` in one place.
         xlabel_coords, ylabel_coords : (float, float), optional
@@ -2432,7 +2434,7 @@ class Plotter(ColorbarMixin, TickMixin):
         maj_tick_l, min_tick_l : float, optional
             Aliases for `tick_length_major` and `tick_length_minor`.
         show_minor_ticks : bool, default=True
-            Whether to show minor ticks.
+            Whether to show minor tick marks. This does not affect explicitly positioned major ticks.
         minor_tick_locator : {'auto', 'log'}, default='auto'
             How to locate minor ticks. 'log' uses LogLocator for log scales.
         
@@ -2750,7 +2752,9 @@ class Plotter(ColorbarMixin, TickMixin):
                 ax.set_xlim(xlim)
 
             # Scale
-            ax.set_xscale(xscale)
+            if xscale is not None:
+                ax.set_xscale(xscale)
+            effective_xscale = xscale or ax.get_xscale()
 
             # Label position
             if xlabel_position in ['top', 'bottom']:
@@ -2766,19 +2770,23 @@ class Plotter(ColorbarMixin, TickMixin):
                 )
 
             # Decade-aligned log ticks (before custom set_ticks so replace/hide can act on them)
-            if xdecade_step and xscale == 'log':
+            if xdecade_step and effective_xscale == 'log':
                 Plotter._setup_log_axis(ax.xaxis, ax.get_xlim(), xdecade_step,
                                         length_major=tick_length_major, length_minor=tick_length_minor, width=tick_width)
 
             # Ticks
-            if xticks is not None or xticklabels is not None:
+            if xtick_opts:
+                opts = dict(xtick_opts)
+                if xticks is not None and 'ticks' not in opts:
+                    opts['ticks'] = xticks
+                if xticklabels is not None and 'labels' not in opts:
+                    opts['labels'] = xticklabels
+                Plotter.set_ticks(ax, 'x', **opts)
+            elif xticks is not None or xticklabels is not None:
                 Plotter._set_ticks_labelled(ax, 'x', xticks, xticklabels)
 
-            if xtick_opts:
-                Plotter.set_ticks(ax, 'x', **xtick_opts)
-
             # Minor ticks
-            if show_minor_ticks and xscale == 'log' and minor_tick_locator == 'auto':
+            if show_minor_ticks and effective_xscale == 'log' and minor_tick_locator == 'auto':
                 ax.xaxis.set_minor_locator(plt.LogLocator(base=10.0, subs='all', numticks=100))
 
             # Inversion
@@ -2792,7 +2800,9 @@ class Plotter(ColorbarMixin, TickMixin):
                 ax.set_ylim(ylim)
 
             # Scale
-            ax.set_yscale(yscale)
+            if yscale is not None:
+                ax.set_yscale(yscale)
+            effective_yscale = yscale or ax.get_yscale()
 
             # Label position
             if ylabel_position in ['left', 'right']:
@@ -2808,19 +2818,23 @@ class Plotter(ColorbarMixin, TickMixin):
                 )
 
             # Decade-aligned log ticks (before custom set_ticks so replace/hide can act on them)
-            if ydecade_step and yscale == 'log':
+            if ydecade_step and effective_yscale == 'log':
                 Plotter._setup_log_axis(ax.yaxis, ax.get_ylim(), ydecade_step,
                                         length_major=tick_length_major, length_minor=tick_length_minor, width=tick_width)
 
             # Ticks
-            if yticks is not None or yticklabels is not None:
+            if ytick_opts:
+                opts = dict(ytick_opts)
+                if yticks is not None and 'ticks' not in opts:
+                    opts['ticks'] = yticks
+                if yticklabels is not None and 'labels' not in opts:
+                    opts['labels'] = yticklabels
+                Plotter.set_ticks(ax, 'y', **opts)
+            elif yticks is not None or yticklabels is not None:
                 Plotter._set_ticks_labelled(ax, 'y', yticks, yticklabels)
 
-            if ytick_opts:
-                Plotter.set_ticks(ax, 'y', **ytick_opts)
-
             # Minor ticks
-            if show_minor_ticks and yscale == 'log' and minor_tick_locator == 'auto':
+            if show_minor_ticks and effective_yscale == 'log' and minor_tick_locator == 'auto':
                 ax.yaxis.set_minor_locator(plt.LogLocator(base=10.0, subs='all', numticks=100))
 
             # Inversion
@@ -2924,9 +2938,9 @@ class Plotter(ColorbarMixin, TickMixin):
             try:
                 from matplotlib.ticker import LogFormatterSciNotation
                 # Apply scientific notation for very large/small numbers if no custom ticks/locator specified
-                if xscale == 'log' and not xdecade_step and not xtick_opts and xticks is None:
+                if effective_xscale == 'log' and not xdecade_step and not xtick_opts and xticks is None:
                     ax.xaxis.set_major_formatter(LogFormatterSciNotation())
-                if yscale == 'log' and not ydecade_step and not ytick_opts and yticks is None:
+                if effective_yscale == 'log' and not ydecade_step and not ytick_opts and yticks is None:
                     ax.yaxis.set_major_formatter(LogFormatterSciNotation())
             except Exception:
                 pass  # Graceful fallback if formatter not available
@@ -2942,6 +2956,62 @@ class Plotter(ColorbarMixin, TickMixin):
                 ax.figure.tight_layout()
             except Exception:
                 pass  # Some backends don't support tight_layout
+
+    # Concise alias for set_ax_params
+    set = set_ax_params
+
+    @staticmethod
+    def set_log_ticks(ax, which='y', ticks=None, labels=None, *, hide=None, hide_ticks=None,
+                      every=None, offset=0, fmt='{:g}', tol=1e-9, show_minor_ticks=True,
+                      minor_subs='all'):
+        """Set major ticks and minor ticks on one logarithmic axis.
+
+        Empty labels and `hide` suppress text but keep major marks. `hide_ticks` removes major marks.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes
+            Target axis.
+        which : {'x', 'y'}
+            Axis to configure.
+        ticks : array-like, optional
+            Major tick positions. None keeps the axis locator's positions.
+        labels : list of str, optional
+            Major tick labels, in the same order as `ticks`.
+        hide : array-like, optional
+            Positions whose labels are hidden while their major marks remain.
+        hide_ticks : array-like, optional
+            Major tick positions to remove, along with their labels.
+        every : int, optional
+            Keep a label on every `every`-th major tick.
+        offset : int, default=0
+            Starting offset for `every`.
+        fmt : str, default='{:g}'
+            Format string for labels when `labels` is omitted.
+        tol : float, default=1e-9
+            Relative matching tolerance used by `hide` and `hide_ticks`.
+        show_minor_ticks : bool, default=True
+            Whether to show logarithmic minor marks on this axis.
+        minor_subs : array-like or {'auto', 'all'}, default='all'
+            Minor tick positions within each decade, passed to `LogLocator`.
+
+        Returns
+        -------
+        ticks, labels
+            The remaining major tick positions and their labels.
+        """
+        if which not in ('x', 'y'):
+            raise ValueError("which must be 'x' or 'y'")
+        ax = Plotter.ax(ax)
+        axis = ax.xaxis if which == 'x' else ax.yaxis
+        (ax.set_xscale if which == 'x' else ax.set_yscale)('log')
+        if show_minor_ticks:
+            axis.set_minor_locator(mticker.LogLocator(base=10.0, subs=minor_subs, numticks=100))
+            axis.set_minor_formatter(mticker.NullFormatter())
+        else:
+            axis.set_minor_locator(mticker.NullLocator())
+        return Plotter.set_ticks(ax, which, ticks, labels=labels, hide=hide, hide_ticks=hide_ticks,
+                                 every=every, offset=offset, fmt=fmt, tol=tol)
 
     @staticmethod
     def set_xlabel(
