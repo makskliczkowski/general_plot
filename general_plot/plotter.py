@@ -2259,94 +2259,94 @@ class Plotter(ColorbarMixin, TickMixin):
     def set_ax_params(
             ax,
             # Axis specification
-            which                   : str                                   = 'both',
+            which                   : str                                                           = 'both',
             # Labels
-            xlabel                  : Optional[str]                         = None,
-            ylabel                  : Optional[str]                         = None,
-            title                   : Optional[str]                         = None,
+            xlabel                  : Optional[str]                                                 = None,
+            ylabel                  : Optional[str]                                                 = None,
+            title                   : Optional[str]                                                 = None,
             # Label styling
-            fontsize                : Optional[int]                         = None,
-            labelsize_title         : Optional[int]                         = None,
-            labelsize_tick          : Optional[int]                         = None,
-            labelpad                : Optional[Union[float, dict]]          = None,
-            title_pad               : float                                 = 10.0,
+            fontsize                : Optional[int]                                                 = None,
+            labelsize_title         : Optional[int]                                                 = None,
+            labelsize_tick          : Optional[int]                                                 = None,
+            labelpad                : Optional[Union[float, dict]]                                  = None,
+            title_pad               : float                                                         = 10.0,
             # Label positions
-            xlabel_position         : Optional[Literal['top', 'bottom']]    = None,
-            ylabel_position         : Optional[Literal['left', 'right']]    = None,
-            xlabel_pos              : Optional[Literal['top', 'bottom']]    = None,
-            ylabel_pos              : Optional[Literal['left', 'right']]    = None,
-            xlabel_coords           : Optional[Tuple[float, float]]         = None,
-            ylabel_coords           : Optional[Tuple[float, float]]         = None,
+            xlabel_position         : Optional[Literal['top', 'bottom']]                            = None,
+            ylabel_position         : Optional[Literal['left', 'right']]                            = None,
+            xlabel_pos              : Optional[Literal['top', 'bottom']]                            = None,
+            ylabel_pos              : Optional[Literal['left', 'right']]                            = None,
+            xlabel_coords           : Optional[Tuple[float, float]]                                 = None,
+            ylabel_coords           : Optional[Tuple[float, float]]                                 = None,
             # Axis limits and scales
-            xlim                    : Optional[tuple]                       = None,
-            ylim                    : Optional[tuple]                       = None,
-            xscale                  : Optional[Literal['linear', 'log', 'symlog']] = None,
-            yscale                  : Optional[Literal['linear', 'log', 'symlog']] = None,
+            xlim                    : Optional[tuple]                                               = None,
+            ylim                    : Optional[tuple]                                               = None,
+            xscale                  : Optional[Literal['linear', 'log', 'symlog']]                  = None,
+            yscale                  : Optional[Literal['linear', 'log', 'symlog']]                  = None,
             # Ticks and tick labels
-            xticks                  : Optional[Union[list, np.ndarray]]     = None,
-            yticks                  : Optional[Union[list, np.ndarray]]     = None,
-            xticklabels             : Optional[list]                        = None,
-            yticklabels             : Optional[list]                        = None,
-            xtick_opts              : Optional[dict]                        = None,
-            ytick_opts              : Optional[dict]                        = None,
+            xticks                  : Optional[Union[list, np.ndarray]]                             = None,
+            yticks                  : Optional[Union[list, np.ndarray]]                             = None,
+            xticklabels             : Optional[list]                                                = None,
+            yticklabels             : Optional[list]                                                = None,
+            xtick_opts              : Optional[dict]                                                = None,
+            ytick_opts              : Optional[dict]                                                = None,
             xtickpos                : Optional[Literal['top', 'bottom', 'both', 'default', 'none']] = None,
             ytickpos                : Optional[Literal['left', 'right', 'both', 'default', 'none']] = None,
             xtick_pos               : Optional[Literal['top', 'bottom', 'both', 'default', 'none']] = None,
             ytick_pos               : Optional[Literal['left', 'right', 'both', 'default', 'none']] = None,
-            tick_length_major       : Optional[float]                       = None,
-            tick_length_minor       : Optional[float]                       = None,
-            maj_tick_l              : Optional[float]                       = None,
-            min_tick_l              : Optional[float]                       = None,
-            tick_width              : Optional[float]                       = None,
-            tick_direction          : Optional[Literal['in', 'out', 'inout']] = None,
+            tick_length_major       : Optional[float]                                               = None,
+            tick_length_minor       : Optional[float]                                               = None,
+            maj_tick_l              : Optional[float]                                               = None,
+            min_tick_l              : Optional[float]                                               = None,
+            tick_width              : Optional[float]                                               = None,
+            tick_direction          : Optional[Literal['in', 'out', 'inout']]                       = None,
             # Inset
-            is_inset                : Optional[bool]                        = None,
+            is_inset                : Optional[bool]                                                = None,
             # Minor ticks
-            show_minor_ticks        : bool                                  = True,
-            minor_tick_locator      : Optional[str]                         = 'auto',  # 'auto' or 'log' for log scale
+            show_minor_ticks        : bool                                                          = True,
+            minor_tick_locator      : Optional[str]                                                 = 'auto',   # 'auto' or 'log' for log scale
             # Grid
-            grid                    : Union[bool, dict]                     = False,
-            grid_axis               : Literal['both', 'x', 'y']             = 'both',
-            grid_which              : Literal['major', 'minor', 'both']     = 'major',
-            grid_style              : str                                   = '--',
-            grid_color              : Optional[str]                         = None,
-            grid_alpha              : float                                 = 0.3,
-            grid_linewidth          : float                                 = 0.8,
+            grid                    : Union[bool, dict, None]                                       = None,     # None: leave the grid as it is
+            grid_axis               : Literal['both', 'x', 'y']                                     = 'both',   
+            grid_which              : Literal['major', 'minor', 'both']                             = 'major',
+            grid_style              : str                                                           = '--',
+            grid_color              : Optional[str]                                                 = None,
+            grid_alpha              : float                                                         = 0.3,
+            grid_linewidth          : float                                                         = 0.8,
             # Spines
-            show_spines             : Union[bool, dict]                     = True,
-            spine_width             : float                                 = 1.0,
-            spine_color             : str                                   = 'black',
-            # Aspect ratio
-            aspect                  : Optional[Union[str, float]]           = None,
-            # Tight layout
-            tight_layout            : bool                                  = False,
-            # Legend
-            legend                  : bool                                  = False,
-            legend_kwargs           : Optional[dict]                        = None,
-            # Advanced options
-            invert_xaxis            : bool                                  = False,
-            invert_yaxis            : bool                                  = False,
-            auto_formatter          : bool                                  = True,
-            # label condition   
-            label_cond              : bool                                  = True,
-            label_pos               : Optional[Union[dict, str, tuple, list]] = None,
-            tick_pos                : Optional[Union[dict, str, tuple, list]] = None,
-            xdecade_step            : Optional[int]                         = None,
-            ydecade_step            : Optional[int]                         = None,
-            every                   : Optional[Union[int, dict, tuple]]     = None,
-            xevery                  : Optional[int]                         = None,
-            yevery                  : Optional[int]                         = None,
-            x_every                 : Optional[int]                         = None,
-            y_every                 : Optional[int]                         = None,
-            replace                 : Optional[Union[dict, Tuple[dict, dict]]] = None,
-            xtick_replace           : Optional[dict]                        = None,
-            ytick_replace           : Optional[dict]                        = None,
-            hide                    : Optional[Union[list, np.ndarray, dict]] = None,
-            xtick_hide              : Optional[Union[list, np.ndarray]]     = None,
-            ytick_hide              : Optional[Union[list, np.ndarray]]     = None,
-            step                    : Optional[Union[float, dict]]          = None,
-            xstep                   : Optional[float]                       = None,
-            ystep                   : Optional[float]                       = None,
+            show_spines             : Union[bool, dict, None]                                       = None,           # None / unset spine_*: library default on the first call only
+            spine_width             : Optional[float]                                               = None,
+            spine_color             : Optional[str]                                                 = None,
+            # Aspect ratio                      
+            aspect                  : Optional[Union[str, float]]                                   = None,
+            # Tight layout                      
+            tight_layout            : bool                                                          = False,
+            # Legend                        
+            legend                  : bool                                                          = False,
+            legend_kwargs           : Optional[dict]                                                = None,
+            # Advanced options                      
+            invert_xaxis            : bool                                                          = False,
+            invert_yaxis            : bool                                                          = False,
+            auto_formatter          : bool                                                          = True,
+            # label condition                           
+            label_cond              : bool                                                          = True,
+            label_pos               : Optional[Union[dict, str, tuple, list]]                       = None,
+            tick_pos                : Optional[Union[dict, str, tuple, list]]                       = None,
+            xdecade_step            : Optional[int]                                                 = None,
+            ydecade_step            : Optional[int]                                                 = None,
+            every                   : Optional[Union[int, dict, tuple]]                             = None,
+            xevery                  : Optional[int]                                                 = None,
+            yevery                  : Optional[int]                                                 = None,
+            x_every                 : Optional[int]                                                 = None,
+            y_every                 : Optional[int]                                                 = None,
+            replace                 : Optional[Union[dict, Tuple[dict, dict]]]                      = None,
+            xtick_replace           : Optional[dict]                                                = None,
+            ytick_replace           : Optional[dict]                                                = None,
+            hide                    : Optional[Union[list, np.ndarray, dict]]                       = None,
+            xtick_hide              : Optional[Union[list, np.ndarray]]                             = None,
+            ytick_hide              : Optional[Union[list, np.ndarray]]                             = None,
+            step                    : Optional[Union[float, dict]]                                  = None,
+            xstep                   : Optional[float]                                               = None,
+            ystep                   : Optional[float]                                               = None,
             **kwargs
         ):
         r"""
@@ -2565,6 +2565,9 @@ class Plotter(ColorbarMixin, TickMixin):
         
         Notes
         -----
+        - Arguments that are not passed leave the axis unchanged. The library defaults for tick size, tick width, tick direction,
+          minor ticks and spines are applied only on the first call for a given axis. Later calls change only what they name.
+          `grid=False` switches the grid off. `grid=None` keeps it. Log-axis minor locator and formatter are set only when the scale is passed.
         - Set `labelsize_*` to None to auto-scale relative to `fontsize`
         - Grid is best used with light colors and low alpha (0.2-0.4)
         - For log scales, minor_tick_locator='log' is recommended
@@ -2578,6 +2581,10 @@ class Plotter(ColorbarMixin, TickMixin):
         grid : Add gridlines to axis
         """
         ax = Plotter.ax(ax)
+
+        first       = not getattr(ax, '_gp_styled', False)          # library defaults are applied once per axis
+        first_tick  = not getattr(ax, '_gp_ticks_styled', False)    # tick defaults are shared with `set_tickparams`
+        ax._gp_styled = ax._gp_ticks_styled = True
 
         if is_inset is None:
             is_inset = getattr(ax, '_is_inset', False) or (getattr(ax, '_axes_locator', None) is not None)
@@ -2718,6 +2725,8 @@ class Plotter(ColorbarMixin, TickMixin):
             default_fs = base_label
             default_ts = base_tick
 
+        fontsize_given      = fontsize is not None
+        labelsize_tick_given = labelsize_tick is not None
         if fontsize is None:
             fontsize = default_fs
         if labelsize_title is None:
@@ -2726,6 +2735,9 @@ class Plotter(ColorbarMixin, TickMixin):
             labelsize_tick = (fontsize - 1.0) if (fontsize is not None and not is_inset and fontsize != base_label) else default_ts
 
         tick_sizes          = {'x': labelsize_tick, 'y': labelsize_tick}
+        set_major           = first_tick or maj_tick_l is not None or tick_length_major is not None or tick_width is not None or tick_direction is not None
+        set_minor           = first_tick or min_tick_l is not None or tick_length_minor is not None or tick_width is not None or tick_direction is not None
+        set_size            = first_tick or fontsize_given or labelsize_tick_given
         tick_length_major   = maj_tick_l if maj_tick_l is not None else (tick_length_major if tick_length_major is not None else (2.5 if is_inset else Plotter.TICK_LENGTH_MAJOR))
         tick_length_minor   = min_tick_l if min_tick_l is not None else (tick_length_minor if tick_length_minor is not None else (1.2 if is_inset else Plotter.TICK_LENGTH_MINOR))
         tick_width          = tick_width if tick_width is not None else (0.75 if is_inset else Plotter.TICK_WIDTH)
@@ -2744,6 +2756,9 @@ class Plotter(ColorbarMixin, TickMixin):
         else:
             x_labelpad = None
             y_labelpad = None
+
+        effective_xscale = xscale or ax.get_xscale()
+        effective_yscale = yscale or ax.get_yscale()
 
         # ===== X-AXIS CONFIGURATION =====
         if 'x' in which or 'both' in which:
@@ -2786,7 +2801,7 @@ class Plotter(ColorbarMixin, TickMixin):
                 Plotter._set_ticks_labelled(ax, 'x', xticks, xticklabels)
 
             # Minor ticks
-            if show_minor_ticks and effective_xscale == 'log' and minor_tick_locator == 'auto':
+            if show_minor_ticks and xscale == 'log' and minor_tick_locator == 'auto':
                 ax.xaxis.set_minor_locator(plt.LogLocator(base=10.0, subs='all', numticks=100))
 
             # Inversion
@@ -2834,7 +2849,7 @@ class Plotter(ColorbarMixin, TickMixin):
                 Plotter._set_ticks_labelled(ax, 'y', yticks, yticklabels)
 
             # Minor ticks
-            if show_minor_ticks and effective_yscale == 'log' and minor_tick_locator == 'auto':
+            if show_minor_ticks and yscale == 'log' and minor_tick_locator == 'auto':
                 ax.yaxis.set_minor_locator(plt.LogLocator(base=10.0, subs='all', numticks=100))
 
             # Inversion
@@ -2850,17 +2865,19 @@ class Plotter(ColorbarMixin, TickMixin):
             )
 
         # ===== TICK CONFIGURATION =====
-        ax.tick_params(
-            axis='both',
-            which='major',
-            length=tick_length_major,
-            width=tick_width,
-            direction=tick_direction,
-            **kwargs
-        )
-        for axis_name, size in tick_sizes.items():
-            ax.tick_params(axis=axis_name, which='both', labelsize=size)
-        if show_minor_ticks:
+        if set_major or kwargs:
+            ax.tick_params(
+                axis='both',
+                which='major',
+                length=tick_length_major,
+                width=tick_width,
+                direction=tick_direction,
+                **kwargs
+            )
+        if set_size:
+            for axis_name, size in tick_sizes.items():
+                ax.tick_params(axis=axis_name, which='both', labelsize=size)
+        if show_minor_ticks and set_minor:
             ax.tick_params(
                 axis='both',
                 which='minor',
@@ -2890,7 +2907,9 @@ class Plotter(ColorbarMixin, TickMixin):
             grid_color      = go.get('color', grid_color)
             grid_alpha      = go.get('alpha', grid_alpha)
             grid_linewidth  = go.get('linewidth', grid_linewidth)
-        if grid:
+        if grid is None:
+            pass
+        elif grid:
             grid_kw = {
                 "axis": grid_axis,
                 "which": grid_which,
@@ -2905,29 +2924,28 @@ class Plotter(ColorbarMixin, TickMixin):
             ax.grid(False)
 
         # ===== SPINE CONFIGURATION =====
-        if is_inset and spine_width == 1.0:
-            spine_width = 0.85
-
-        if isinstance(show_spines, bool):
-            # Show or hide all spines
-            for spine in ax.spines.values():
-                spine.set_visible(show_spines)
-                if show_spines:
-                    spine.set_linewidth(spine_width)
-                    spine.set_color(spine_color)
-        else:
-            # Selective spine configuration
-            spine_config = {
-                'left': True, 'bottom': True, 'top': True, 'right': True
-            }
+        # Each spine property is set when passed, or on the first call (library default); otherwise it is left alone.
+        spine_config = {'left': True, 'bottom': True, 'top': True, 'right': True}
+        if isinstance(show_spines, dict):
             spine_config.update(show_spines)
+        elif show_spines is not None:
+            spine_config = {k: bool(show_spines) for k in spine_config}
+        set_vis     = first or show_spines is not None
+        set_width   = first or spine_width is not None
+        set_color   = first or spine_color is not None
+        width       = spine_width if spine_width is not None else (0.85 if is_inset else 1.0)
+        color       = spine_color if spine_color is not None else 'black'
 
-            for spine_name, visible in spine_config.items():
-                if spine_name in ax.spines:
-                    ax.spines[spine_name].set_visible(visible)
-                    if visible:
-                        ax.spines[spine_name].set_linewidth(spine_width)
-                        ax.spines[spine_name].set_color(spine_color)
+        for spine_name, visible in spine_config.items():
+            spine = ax.spines.get(spine_name)
+            if spine is None:
+                continue
+            if set_vis:
+                spine.set_visible(visible)
+            if set_width and spine.get_visible():
+                spine.set_linewidth(width)
+            if set_color and spine.get_visible():
+                spine.set_color(color)
 
         # ===== ASPECT RATIO =====
         if aspect is not None:
@@ -2938,9 +2956,9 @@ class Plotter(ColorbarMixin, TickMixin):
             try:
                 from matplotlib.ticker import LogFormatterSciNotation
                 # Apply scientific notation for very large/small numbers if no custom ticks/locator specified
-                if effective_xscale == 'log' and not xdecade_step and not xtick_opts and xticks is None:
+                if xscale == 'log' and not xdecade_step and not xtick_opts and xticks is None:
                     ax.xaxis.set_major_formatter(LogFormatterSciNotation())
-                if effective_yscale == 'log' and not ydecade_step and not ytick_opts and yticks is None:
+                if yscale == 'log' and not ydecade_step and not ytick_opts and yticks is None:
                     ax.yaxis.set_major_formatter(LogFormatterSciNotation())
             except Exception:
                 pass  # Graceful fallback if formatter not available
@@ -3053,7 +3071,9 @@ class Plotter(ColorbarMixin, TickMixin):
         ax = Plotter.ax(ax)
         if loc is not None:
             kwargs.setdefault("loc", loc)
-        ax.set_xlabel(xlabel, fontsize=fontsize, labelpad=labelpad if labelpad != 0 else None, **kwargs)
+        if fontsize is not None:                                # None would reset the size of an existing label
+            kwargs['fontsize'] = fontsize
+        ax.set_xlabel(xlabel, labelpad=labelpad if labelpad != 0 else None, **kwargs)
 
         if x is not None or y is not None:
             x0, y0 = ax.xaxis.get_label().get_position()
@@ -3104,7 +3124,9 @@ class Plotter(ColorbarMixin, TickMixin):
         ax = Plotter.ax(ax)
         if loc is not None:
             kwargs.setdefault("loc", loc)
-        ax.set_ylabel(ylabel, fontsize=fontsize, labelpad=labelpad if labelpad != 0 else None, **kwargs)
+        if fontsize is not None:                                # None would reset the size of an existing label
+            kwargs['fontsize'] = fontsize
+        ax.set_ylabel(ylabel, labelpad=labelpad if labelpad != 0 else None, **kwargs)
 
         if x is not None or y is not None:
             x0, y0 = ax.yaxis.get_label().get_position()
@@ -3258,8 +3280,8 @@ class Plotter(ColorbarMixin, TickMixin):
     def unset_spines(ax,
                      top: bool = True,
                      right: bool = True,
-                     bottom: bool = False,
-                     left: bool = False):
+                     bottom: Optional[bool] = None,
+                     left: Optional[bool] = None):
         """
         Remove specified spines from the axis for cleaner publication-style plots.
         
@@ -3271,10 +3293,10 @@ class Plotter(ColorbarMixin, TickMixin):
             If True, REMOVE the top spine. If False, KEEP it.
         right : bool, default=True
             If True, REMOVE the right spine. If False, KEEP it.
-        bottom : bool, default=False
-            If True, REMOVE the bottom spine. If False, KEEP it.
-        left : bool, default=False
-            If True, REMOVE the left spine. If False, KEEP it.
+        bottom : bool, optional
+            If True, REMOVE the bottom spine. If False, show it. None (default) leaves it as it is.
+        left : bool, optional
+            If True, REMOVE the left spine. If False, show it. None (default) leaves it as it is.
         
         Examples
         --------
@@ -3296,10 +3318,9 @@ class Plotter(ColorbarMixin, TickMixin):
         "Nature" or "Science" journal style with only left and bottom spines.
         """
         # True means REMOVE, so we set_visible(not param)
-        ax.spines['top'].set_visible(not top)
-        ax.spines['right'].set_visible(not right)
-        ax.spines['bottom'].set_visible(not bottom)
-        ax.spines['left'].set_visible(not left)
+        for name, remove in (('top', top), ('right', right), ('bottom', bottom), ('left', left)):
+            if remove is not None:                      # None leaves the spine as it is
+                ax.spines[name].set_visible(not remove)
 
     @staticmethod
     def unset_ticks(ax,
@@ -3405,7 +3426,7 @@ class Plotter(ColorbarMixin, TickMixin):
             ax.set_ylabel('')
 
     @staticmethod
-    def unset_ticks_and_spines(ax, xticks: bool = True, yticks: bool = True, top: bool = True, right: bool = True, bottom: bool = False, left: bool = False):
+    def unset_ticks_and_spines(ax, xticks: bool = True, yticks: bool = True, top: bool = True, right: bool = True, bottom: Optional[bool] = None, left: Optional[bool] = None):
         """
         Convenience method to remove both ticks and spines in one call.
         
@@ -3974,10 +3995,10 @@ class Plotter(ColorbarMixin, TickMixin):
                     # Visibility
                     visible: bool = True,
                     # Spines
-                    spines: Union[bool, dict, str] = True,
+                    spines: Union[bool, dict, str, None] = None,
                     # Ticks
-                    ticks: Union[bool, dict, str] = True,
-                    tick_labels: Union[bool, dict, str] = True,
+                    ticks: Union[bool, dict, str, None] = None,
+                    tick_labels: Union[bool, dict, str, None] = None,
                     # Labels
                     xlabel: str = None,
                     ylabel: str = None,
@@ -4002,7 +4023,7 @@ class Plotter(ColorbarMixin, TickMixin):
             The axis to configure.
         visible : bool, default=True
             If False, hide the entire axis (ax.axis('off')).
-        spines : bool, dict, or str, default=True
+        spines : bool, dict, or str, optional
             Control spine visibility:
             - True: Show all spines
             - False: Hide all spines
@@ -4010,7 +4031,7 @@ class Plotter(ColorbarMixin, TickMixin):
             - 'bottom': Hide all except bottom
             - 'minimal': Hide top and right (Nature-style)
             - dict: {'top': False, 'right': False, ...}
-        ticks : bool, dict, or str, default=True
+        ticks : bool, dict, or str, optional
             Control tick visibility:
             - True/False: Show/hide all ticks
             - 'x'/'y': Show only x/y ticks
@@ -4092,9 +4113,13 @@ class Plotter(ColorbarMixin, TickMixin):
 
         ticks_cfg = _parse_bool_dict(ticks)
         labels_cfg = _parse_bool_dict(tick_labels)
+        if ticks is not None:
+            ax.tick_params(axis='x', which='both', bottom=ticks_cfg['x'], top=ticks_cfg['x'])
+            ax.tick_params(axis='y', which='both', left=ticks_cfg['y'], right=ticks_cfg['y'])
+        if tick_labels is not None:
+            ax.tick_params(axis='x', which='both', labelbottom=labels_cfg['x'])
+            ax.tick_params(axis='y', which='both', labelleft=labels_cfg['y'])
 
-        ax.tick_params(axis='x', which='both', bottom=ticks_cfg['x'], top=ticks_cfg['x'], labelbottom=labels_cfg['x'])
-        ax.tick_params(axis='y', which='both', left=ticks_cfg['y'], right=ticks_cfg['y'], labelleft=labels_cfg['y'])
 
         # --- Labels ---
         fs = fontsize or plt.rcParams.get('axes.labelsize', 10)

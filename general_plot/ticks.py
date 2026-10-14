@@ -159,6 +159,9 @@ class TickMixin:
                         yticklabels     =   None,
                         maj_tick_l      =   None,
                         min_tick_l      =   None,
+                        # aliases
+                        majl            =   None,
+                        minl            =   None,
                         **kwargs
                         ):
         """
@@ -181,20 +184,33 @@ class TickMixin:
         **kwargs
             Additional keyword arguments forwarded to `ax.tick_params`.
         """
-        ax = Plotter.ax(ax)
-        is_inset = getattr(ax, '_is_inset', False) or (getattr(ax, '_axes_locator', None) is not None)
+        ax                  = Plotter.ax(ax)
+        is_inset            = getattr(ax, '_is_inset', False) or (getattr(ax, '_axes_locator', None) is not None)
 
-        if maj_tick_l is None:
-            maj_tick_l = 2.5 if is_inset else Plotter.TICK_LENGTH_MAJOR
-        if min_tick_l is None:
-            min_tick_l = 1.2 if is_inset else Plotter.TICK_LENGTH_MINOR
+        # Library lengths and direction apply on the first tick styling of an axis only; later calls change what they name.
+        first               = not getattr(ax, '_gp_ticks_styled', False)
+        ax._gp_ticks_styled = True
+        major_kw, minor_kw  = {}, {}
+        if majl is not None:
+            warnings.warn("`majl` overrides `maj_tick_l` (deprecated).", DeprecationWarning, stacklevel=2)
+        if minl is not None:
+            warnings.warn("`minl` overrides `min_tick_l` (deprecated).", DeprecationWarning, stacklevel=2)
+        maj_tick_l          = majl if majl is not None else maj_tick_l
+        min_tick_l          = minl if minl is not None else min_tick_l
+        
+        if maj_tick_l is not None or first:
+            major_kw['length'] = maj_tick_l if maj_tick_l is not None else (2.5 if is_inset else Plotter.TICK_LENGTH_MAJOR)
+        if min_tick_l is not None or first:
+            minor_kw['length'] = min_tick_l if min_tick_l is not None else (1.2 if is_inset else Plotter.TICK_LENGTH_MINOR)
+        if first:
+            major_kw['direction'] = minor_kw['direction'] = Plotter.TICK_DIRECTION
 
         side_kw = {k: v for k, v in [('left', left), ('right', right), ('top', top), ('bottom', bottom)] if v is not None}
 
         # labelsize=None keeps the current tick-label size; passing None to tick_params would reset it to the rcParams default.
         ax.tick_params(axis='both', which='major', **side_kw, **({} if labelsize is None else dict(labelsize=labelsize)))
-        ax.tick_params(axis="both", which='major', direction="in", length=maj_tick_l, **side_kw, **kwargs)
-        ax.tick_params(axis="both", which='minor', direction="in", length=min_tick_l, **side_kw, **kwargs)
+        ax.tick_params(axis="both", which='major', **{**major_kw, **side_kw, **kwargs})
+        ax.tick_params(axis="both", which='minor', **{**minor_kw, **side_kw, **kwargs})
 
         if xticks is not None or xticklabels is not None:
             Plotter._set_ticks_labelled(ax, 'x', xticks, xticklabels)

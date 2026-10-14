@@ -245,3 +245,43 @@ def test_letter_density_inset_log_grid():
         Plotter.add_colorbar(fig2, ax=ax2, norm=matplotlib.colors.Normalize(0, 1))
     assert any("tight_layout" in str(x.message) for x in w)
     plt.close("all")
+
+
+def test_set_ax_params_keeps_unset_properties():
+    """A later call changes only what it names: grid, tick size, spines, log formatter and minor locator survive."""
+    fig, ax = plt.subplots()
+    Plotter.set_ax_params(ax, yscale="log", tick_length_major=7, spine_width=2.0, grid=True)
+    fmt, loc = ax.yaxis.get_major_formatter(), ax.yaxis.get_minor_locator()
+
+    Plotter.set_ax_params(ax, xlabel="a")
+    assert ax.xaxis._major_tick_kw["grid_alpha"] == 0.3 and ax.xaxis.get_gridlines()[0].get_visible()
+    assert ax.xaxis.get_major_ticks()[0].tick1line.get_markersize() == 7
+    assert all(sp.get_linewidth() == 2.0 for sp in ax.spines.values())
+    assert ax.yaxis.get_major_formatter() is fmt and ax.yaxis.get_minor_locator() is loc
+
+    Plotter.set_ax_params(ax, grid=False, which="y", spine_color="red")
+    assert not ax.yaxis.get_gridlines()[0].get_visible()
+    assert ax.spines["left"].get_edgecolor()[:3] == (1.0, 0.0, 0.0) and ax.spines["left"].get_linewidth() == 2.0
+    plt.close(fig)
+
+
+def test_helpers_keep_unset_properties():
+    """Tick, label, spine and axis helpers change only what they are asked to."""
+    fig, ax = plt.subplots()
+    ax.set_xlabel("x", fontsize=17)
+    Plotter.set_xlabel(ax, "y")
+    assert ax.xaxis.get_label().get_fontsize() == 17
+
+    Plotter.set_tickparams(ax, maj_tick_l=9, direction="out")                   # direction passed twice used to raise
+    Plotter.set_tickparams(ax, labelsize=7)
+    t = ax.xaxis.get_major_ticks()[0]
+    assert t.tick1line.get_markersize() == 9 and ax.xaxis._major_tick_kw["tickdir"] == "out"
+
+    Plotter.unset_ticks(ax, xticks=True)
+    Plotter.configure_axes(ax, xlabel="a")                                      # tick labels stay hidden
+    assert not ax.xaxis.get_major_ticks()[0].label1.get_visible()
+
+    Plotter.unset_spines(ax, left=True)
+    Plotter.unset_spines(ax, top=True)
+    assert not ax.spines["left"].get_visible() and not ax.spines["top"].get_visible()
+    plt.close(fig)
