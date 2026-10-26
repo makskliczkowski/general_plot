@@ -247,6 +247,15 @@ def test_letter_density_inset_log_grid():
     plt.close("all")
 
 
+def test_get_inset_background_style():
+    """The inset background accepts an explicit face color and opacity."""
+    fig, ax = Plotter.get_subplots(1, 1)
+    ins     = Plotter.get_inset(ax, [0.5, 0.5, 0.4, 0.4], facecolor="red", facealpha=0.25)
+    assert ins.get_facecolor()[:3] == (1.0, 0.0, 0.0)
+    assert ins.patch.get_alpha() == 0.25
+    plt.close(fig)
+
+
 def test_set_ax_params_keeps_unset_properties():
     """A later call changes only what it names: grid, tick size, spines, log formatter and minor locator survive."""
     fig, ax = plt.subplots()

@@ -4419,6 +4419,7 @@ class Plotter(ColorbarMixin, TickMixin):
                 box_alpha           = 0.5,
                 box_ext             = 0.02,
                 facecolor           = 'white',
+                facealpha           : float = 1.0,
                 zorder              = 1,
                 fontsize            : Optional[float] = None,
                 labelsize_tick      : Optional[float] = None,
@@ -4444,7 +4445,9 @@ class Plotter(ColorbarMixin, TickMixin):
         box_ext : float, default=0.02
             Extension of the box beyond the inset axis.
         facecolor : str, default='white'
-            Face color of the box.
+            Face color of the inset axes and of the optional box.
+        facealpha : float, default=1.0
+            Opacity of the inset axes background. Use 1.0 for an opaque inset.
         zorder : int, default=1
             Z-order of the inset axis.
         fontsize : float, optional
@@ -4473,6 +4476,9 @@ class Plotter(ColorbarMixin, TickMixin):
         ax      = Plotter.ax(ax)
         ax2     = ax.inset_axes(list(position), zorder=zorder, **kwargs)
         ax2._is_inset = True
+        if facecolor is not None:
+            ax2.set_facecolor(facecolor)
+        ax2.patch.set_alpha(facealpha)
 
         base_label = Plotter._rc_size('axes.labelsize')
         base_tick  = Plotter._rc_size('xtick.labelsize')
