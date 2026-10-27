@@ -2256,6 +2256,45 @@ class Plotter(ColorbarMixin, TickMixin):
 
 
     @staticmethod
+    def set_margins(ax, x=None, y=None) -> None:
+        """
+        Data margins as fractions of the data span, separately per side.
+
+        ``x=(left, right)`` and ``y=(bottom, top)``; a single number is used on both sides, ``None`` leaves that axis
+        unchanged. The span is the tight data range of ``ax`` and of every axis sharing it (so one call fits a shared
+        row), measured in decades on a log axis. The limits are recomputed from the data each time, so repeated calls
+        do not add up.
+        """
+        ax = Plotter.ax(ax)
+        for axis, margins in (('x', x), ('y', y)):
+            if margins is None:
+                continue
+            low_margin, high_margin = (margins, margins) if np.isscalar(margins) else margins
+            ax.relim()
+            ax.autoscale(enable=True, axis=axis, tight=True)
+            low, high   = getattr(ax, f'get_{axis}lim')()
+            log         = getattr(ax, f'get_{axis}scale')() == 'log'
+            if log:
+                low, high = np.log10(low), np.log10(high)
+            span        = high - low
+            low, high   = low - low_margin * span, high + high_margin * span
+            getattr(ax, f'set_{axis}lim')((10**low, 10**high) if log else (low, high))
+
+    @staticmethod
+    def _set_limits(ax, axis: str, lim) -> None:
+        """
+        Set ``(low, high)`` limits of ``axis`` ('x' or 'y') under its current scale.
+
+        A ``None`` side follows the data: the axis is autoscaled from the plotted data first (positive data only on a
+        log axis, so a log axis never gets a non-positive limit), then only the given side is fixed.
+        """
+        low, high = lim
+        if low is None or high is None:
+            ax.relim()
+            ax.autoscale(enable=True, axis=axis)
+        getattr(ax, f'set_{axis}lim')(low, high)
+
+    @staticmethod
     def set_ax_params(
             ax,
             # Axis specification
@@ -2762,14 +2801,14 @@ class Plotter(ColorbarMixin, TickMixin):
 
         # ===== X-AXIS CONFIGURATION =====
         if 'x' in which or 'both' in which:
-            # Limits
-            if xlim is not None:
-                ax.set_xlim(xlim)
-
-            # Scale
+            # Scale first, so that limits (and a None side of them) follow the final scale
             if xscale is not None:
                 ax.set_xscale(xscale)
             effective_xscale = xscale or ax.get_xscale()
+
+            # Limits
+            if xlim is not None:
+                Plotter._set_limits(ax, 'x', xlim)
 
             # Label position
             if xlabel_position in ['top', 'bottom']:
@@ -2810,14 +2849,14 @@ class Plotter(ColorbarMixin, TickMixin):
 
         # ===== Y-AXIS CONFIGURATION =====
         if 'y' in which or 'both' in which:
-            # Limits
-            if ylim is not None:
-                ax.set_ylim(ylim)
-
-            # Scale
+            # Scale first, so that limits (and a None side of them) follow the final scale
             if yscale is not None:
                 ax.set_yscale(yscale)
             effective_yscale = yscale or ax.get_yscale()
+
+            # Limits
+            if ylim is not None:
+                Plotter._set_limits(ax, 'y', ylim)
 
             # Label position
             if ylabel_position in ['left', 'right']:
@@ -4531,6 +4570,7 @@ class Plotter(ColorbarMixin, TickMixin):
                 borderpad       : float     = 0.4,
                 columnspacing   : float     = 1.0,
                 ncol            : int       = 1,
+                per_column      : Optional[List[int]] = None,
                 **kwargs):
         '''
         Sets the legend with a preferred style for publication-quality plots.
@@ -4540,7 +4580,9 @@ class Plotter(ColorbarMixin, TickMixin):
         - fontsize        : Font size of the legend labels.
         - frameon         : Whether to draw a frame around the legend.
         - loc             : Location of the legend ('best', 'upper right', etc.).
-        - alignment       : Text alignment ('left', 'center', 'right').
+        - alignment       : Alignment of the legend title and of the block of columns in the legend box ('left', 'center', 'right').
+                            The entries inside a column follow ``markerfirst``: handle first aligns them left, label first aligns
+                            them right (handles in one vertical line on the right).
         - markerfirst     : Whether the marker or label appears first in the legend.
         - framealpha      : Transparency of the legend frame (1.0 is opaque).
         - reverse         : Reverse the order of legend items.
@@ -4551,6 +4593,8 @@ class Plotter(ColorbarMixin, TickMixin):
         - borderpad       : Padding inside the legend box.
         - columnspacing   : Spacing between legend columns.
         - ncol            : Number of columns in the legend.
+        - per_column      : Number of entries in each column, in order (e.g. [3, 1]); sets the number of columns and pads the
+                            shorter columns with invisible blank entries. Must sum to the number of legend entries.
         - kwargs          : Additional arguments passed to `ax.legend()`.
         '''
         ax = Plotter.ax(ax)
@@ -4583,6 +4627,20 @@ class Plotter(ColorbarMixin, TickMixin):
             columnspacing = 1.2
             ncol = 1
 
+        # Columns of given lengths: matplotlib fills columns top to bottom with equal lengths, so pad each column with blanks to the longest
+        if per_column is not None:
+            if sum(per_column) != len(handles):
+                raise ValueError(f"per_column {list(per_column)} holds {sum(per_column)} entries, the legend has {len(handles)}")
+            if kwargs.pop('ncols', len(per_column)) != len(per_column):
+                raise ValueError("ncols contradicts per_column; give only per_column")
+            rows, start         = max(per_column), 0
+            padded_h, padded_l  = [], []
+            for count in per_column:
+                padded_h       += handles[start:start + count] + [Rectangle((0, 0), 0, 0, visible=False)] * (rows - count)
+                padded_l       += labels[start:start + count] + [''] * (rows - count)
+                start          += count
+            handles, labels, ncol = padded_h, padded_l, len(per_column)
+
         # Set legend
         legend = ax.legend(
             handles,
@@ -4590,6 +4648,7 @@ class Plotter(ColorbarMixin, TickMixin):
             fontsize=fontsize,
             frameon=frameon,
             loc=loc,
+            alignment=alignment,
             markerfirst=markerfirst,
             framealpha=framealpha,
             labelspacing=labelspacing,
@@ -4600,11 +4659,7 @@ class Plotter(ColorbarMixin, TickMixin):
             ncol=ncol,
             **kwargs
         )
-
-        # Adjust alignment
-        if alignment != 'left':
-            for text in legend.get_texts():
-                text.set_horizontalalignment(alignment)
+        return legend
 
     @staticmethod
     def set_legend_custom(  ax,

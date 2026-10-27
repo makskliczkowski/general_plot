@@ -50,7 +50,7 @@ class TickMixin:
             set_labels(labels)
 
     @staticmethod
-    def set_ticks(ax, which: str = 'x', ticks=None, *, step=None, n=None, every=None, offset: int = 0, labels=None, replace=None, hide=None, hide_ticks=None, fmt: str = '{:g}', tol: float = 1e-9):
+    def set_ticks(ax, which: str = 'x', ticks=None, *, step=None, n=None, every=None, offset: int = 0, labels=None, replace=None, replace_rotation=None, hide=None, hide_ticks=None, fmt: str = '{:g}', tol: float = 1e-9):
         """
         Set tick positions and labels in one call, without writing the label list by hand.
 
@@ -71,7 +71,11 @@ class TickMixin:
         every : int, optional
             Label only every `every`-th tick, counted from `offset`. The others keep the tick but get an empty label.
         replace : dict, optional
-            {position: label}. Replaces the label of the tick at that position, for example {0.5: "1/2"}.
+            {position: label}. Replaces the label of the tick at that position, for example {0.5: "1/2"}. A position
+            that is not a tick yet becomes one (unless `labels` are given), so an axis label can stand in for a tick
+            label: replace={-1.5: r"$E/N$"}.
+        replace_rotation : float, optional
+            Rotation in degrees of the replaced labels only (e.g. 90 for an axis label set along a y axis).
         hide : array-like, optional
             Positions whose labels are emptied. The ticks stay.
         hide_ticks : array-like, optional
@@ -114,6 +118,10 @@ class TickMixin:
                 idx = np.round(np.linspace(0, len(ticks) - 1, n)).astype(int)
                 ticks = ticks[idx]
         ticks       = np.asarray(ticks, dtype=float) + 0.0      # +0.0 turns -0.0 into 0.0
+        if replace and labels is None:
+            # a replaced position that is not a tick yet is added, so its label can be placed anywhere on the axis
+            missing = [pos for pos in replace if not np.any(np.isclose(ticks, pos, rtol=1e-9, atol=tol * scale))]
+            ticks   = np.sort(np.concatenate([ticks, np.asarray(missing, dtype=float)]))
         if labels is not None:
             out     = list(labels)
             if len(out) != len(ticks):
@@ -144,6 +152,10 @@ class TickMixin:
         for pos, text in (replace or {}).items():
             out     = [text if near(t, pos) else l for t, l in zip(ticks, out)]
         (ax.set_xticks if which == 'x' else ax.set_yticks)(ticks, labels=out)
+        if replace and replace_rotation is not None:
+            for tick, text in zip(ticks, (ax.get_xticklabels() if which == 'x' else ax.get_yticklabels())):
+                if any(near(tick, pos) for pos in replace):
+                    text.set_rotation(replace_rotation)
         return ticks, out
 
     @staticmethod
