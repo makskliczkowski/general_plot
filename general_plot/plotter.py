@@ -443,6 +443,61 @@ class Plotter(ColorbarMixin, TickMixin):
         return x if isinstance(x, (list, tuple, np.ndarray)) else [x]
 
     @staticmethod
+    def place_grid(fig, axes, width_ratios, col_gaps=0.1, row_gap=0.1, margins=(0.1, 0.1, 0.1, 0.1)):
+        """Place a grid of axes by absolute distances, for figures without a layout engine (``constrained_layout=False``).
+
+        Unlike ``tight_layout`` and ``subplots_adjust`` the gap after each column is set separately, so a column without tick labels can sit
+        close to its neighbour while one with labels gets room. All distances are in inches, so they hold when the figure is saved at its size.
+
+        Parameters
+        ----------
+        fig : matplotlib.figure.Figure
+            The figure that holds the axes.
+        axes : sequence of Axes
+            The axes in row-major order, flat or nested. The row count is ``len(axes) / len(width_ratios)``.
+        width_ratios : sequence of float
+            Relative column widths. The rows have equal heights.
+        col_gaps : float or sequence of float, default=0.1
+            Space after each column except the last, one value or one per gap.
+        row_gap : float, default=0.1
+            Space between rows.
+        margins : (left, right, bottom, top), default=(0.1, 0.1, 0.1, 0.1)
+            Space between the grid and the figure edges.
+        """
+        flat    = [ax for row in axes for ax in (row if hasattr(row, "__len__") else [row])] if hasattr(axes[0], "__len__") else list(axes)
+        ncols   = len(width_ratios)
+        if len(flat) % ncols:
+            raise ValueError(f"{len(flat)} axes do not fill rows of {ncols} columns")
+        nrows   = len(flat) // ncols
+        gaps    = [float(col_gaps)] * (ncols - 1) if np.isscalar(col_gaps) else [float(g) for g in col_gaps]
+        if len(gaps) != ncols - 1:
+            raise ValueError(f"col_gaps needs {ncols - 1} values, got {len(gaps)}")
+        left, right, bottom, top = margins
+        width, height = fig.get_size_inches()
+        free_w  = width - left - right - sum(gaps)
+        free_h  = height - bottom - top - (nrows - 1) * row_gap
+        if free_w <= 0 or free_h <= 0:
+            raise ValueError("margins and gaps leave no room for the axes")
+        ratios  = np.asarray(width_ratios, dtype=float)
+        widths  = free_w * ratios / ratios.sum()
+        row_h   = free_h / nrows
+        x0      = left + np.concatenate(([0.0], np.cumsum(widths[:-1] + gaps)))
+        for index, ax in enumerate(flat):
+            row, col = divmod(index, ncols)
+            y0 = height - top - (row + 1) * row_h - row * row_gap
+            ax.set_position([x0[col] / width, y0 / height, widths[col] / width, row_h / height])
+
+    @staticmethod
+    def whitespace(fig):
+        """Blank space between the figure edges and the content (axes, tick labels, labels, legends, text), as ``(left, right, bottom, top)`` in inches.
+
+        A negative value means the content reaches beyond the page and is cut off when the figure is saved at its size (``bbox_inches=None``).
+        """
+        width, height = fig.get_size_inches()
+        box = fig.get_tightbbox(fig.canvas.get_renderer())
+        return box.x0, width - box.x1, box.y0, height - box.y1
+
+    @staticmethod
     def suptitle(fig, text, top=0.82, **kwargs):
         """Set the figure title and leave room for it: ``top`` is the upper edge of the axes area as a fraction of the figure height.
 
@@ -4854,8 +4909,8 @@ class Plotter(ColorbarMixin, TickMixin):
         suptitle        = kwargs.pop('suptitle', None)
         suptitle_kws    = dict(kwargs.pop('suptitle_kws', {}) or {})
         post_hook       = kwargs.pop('post_hook', None)
-        width_ratios    = kwargs.pop('width_ratios', None)
-        height_ratios   = kwargs.pop('height_ratios', None)
+        width_ratios    = kwargs.pop('width_ratios', width_ratios)
+        height_ratios   = kwargs.pop('height_ratios', height_ratios)
         share_x         = kwargs.pop('sharex', share_x)
         share_y         = kwargs.pop('sharey', share_y)
         wspace          = kwargs.pop('wspace', None)
@@ -5113,9 +5168,14 @@ class Plotter(ColorbarMixin, TickMixin):
                 dpi         :   int = 200,
                 adjust      :   bool = True,
                 fig         =   None,
+                bbox_inches =   'tight',
                 **kwargs):
         '''
         Save figure to a specific directory and return the file path.
+
+        ``bbox_inches='tight'`` (default) crops the page to the content, so the saved size differs from the figure size. ``bbox_inches=None`` keeps
+        the figure size exactly, for example after ``Plotter.place_grid``, and anything outside the figure is cut off. (The package style sets
+        ``savefig.bbox='tight'``, which None would otherwise fall back to, so the saving runs with ``savefig.bbox='standard'``.)
 
         ``adjust=True`` (default) resets the subplot margins to the full figure when there is no layout engine; pass ``adjust=False`` to keep
         margins set by ``subplots_adjust``, ``tight_layout`` or ``Plotter.suptitle``.
@@ -5131,14 +5191,15 @@ class Plotter(ColorbarMixin, TickMixin):
             layout_engine = fig.get_layout_engine() if hasattr(fig, "get_layout_engine") else None
             if layout_engine is None:
                 fig.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)
-        fig.savefig(file_path, format=format, dpi=dpi, bbox_inches='tight', **kwargs)
+        with plt.rc_context({} if bbox_inches is not None else {'savefig.bbox': 'standard'}):
+            fig.savefig(file_path, format=format, dpi=dpi, bbox_inches=bbox_inches, **kwargs)
         return file_path
 
     # alias
     @staticmethod
-    def savefig(directory: str, filename: str, format: str = 'pdf', dpi: int = 200, adjust: bool = True, fig = None, **kwargs):
+    def savefig(directory: str, filename: str, format: str = 'pdf', dpi: int = 200, adjust: bool = True, fig = None, bbox_inches = 'tight', **kwargs):
         """Alias for :meth:`save_fig` with the historical lowercase name."""
-        return Plotter.save_fig(directory, filename, format=format, dpi=dpi, adjust=adjust, fig=fig, **kwargs)
+        return Plotter.save_fig(directory, filename, format=format, dpi=dpi, adjust=adjust, fig=fig, bbox_inches=bbox_inches, **kwargs)
 
     ###############################
 

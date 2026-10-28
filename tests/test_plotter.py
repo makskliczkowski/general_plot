@@ -2,6 +2,7 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pytest
 
 from general_plot import Plotter
 
@@ -314,4 +315,43 @@ def test_suptitle_leaves_room_and_save_fig_returns_the_path(tmp_path):
     assert title.get_text() == "system" and fig.subplotpars.top == 0.8
     path        = Plotter.save_fig(tmp_path, "figure.pdf", fig=fig, adjust=False)
     assert path == tmp_path / "figure.pdf" and path.exists() and fig.subplotpars.top == 0.8
+    plt.close(fig)
+
+
+def test_get_subplots_width_and_height_ratios():
+    """width_ratios and height_ratios reach the grid (they were overwritten by None before)."""
+    fig, axes   = Plotter.get_subplots(2, 3, sizex=5.4, sizey=3.5, width_ratios=(1.0, 0.1, 1.0), height_ratios=(2.0, 1.0), constrained_layout=False)
+    gridspec    = axes[0, 0].get_subplotspec().get_gridspec()
+    assert list(gridspec.get_width_ratios()) == [1.0, 0.1, 1.0] and list(gridspec.get_height_ratios()) == [2.0, 1.0]
+    widths      = [axes[0, col].get_position().width for col in range(3)]
+    assert np.isclose(widths[1] / widths[0], 0.1)
+    plt.close(fig)
+
+
+def test_place_grid_sets_absolute_gaps_and_save_fig_keeps_the_size(tmp_path):
+    """place_grid puts margins, per-column gaps and row gap in inches; save_fig(bbox_inches=None) keeps the figure size."""
+    fig, axes   = Plotter.get_subplots(2, 3, sizex=6.0, sizey=4.0, constrained_layout=False)
+    Plotter.place_grid(fig, axes, width_ratios=(1.0, 0.5, 1.0), col_gaps=(0.2, 0.6), row_gap=0.3, margins=(0.7, 0.1, 0.4, 0.2))
+    inches      = lambda ax: np.array(ax.get_position().bounds) * np.array([6.0, 4.0, 6.0, 4.0])
+    first, slim, last, below = (inches(axes[0]), inches(axes[1]), inches(axes[2]), inches(axes[3]))
+    assert np.isclose(first[0], 0.7) and np.isclose(slim[0] - (first[0] + first[2]), 0.2) and np.isclose(last[0] - (slim[0] + slim[2]), 0.6)
+    assert np.isclose(last[0] + last[2], 6.0 - 0.1) and np.isclose(slim[2] / first[2], 0.5)
+    assert np.isclose(4.0 - 0.2, first[1] + first[3]) and np.isclose(first[1] - (below[1] + below[3]), 0.3) and np.isclose(below[1], 0.4)
+    path        = Plotter.save_fig(tmp_path, "grid.png", format="png", dpi=100, fig=fig, adjust=False, bbox_inches=None)
+    assert plt.imread(path).shape[:2] == (400, 600)
+    tight       = Plotter.save_fig(tmp_path, "tight.png", format="png", dpi=100, fig=fig, adjust=False)
+    assert plt.imread(tight).shape[:2] != (400, 600)                    # the default crops the page to the content
+    with pytest.raises(ValueError):
+        Plotter.place_grid(fig, axes, width_ratios=(1.0, 1.0, 1.0), col_gaps=3.0)
+    plt.close(fig)
+
+
+def test_whitespace_reports_the_blank_margins_in_inches():
+    """whitespace measures the distance of the content from the figure edges; a placed grid with generous margins leaves some."""
+    fig, axes   = Plotter.get_subplots(1, 2, sizex=6.0, sizey=3.0, constrained_layout=False)
+    Plotter.place_grid(fig, axes, width_ratios=(1.0, 1.0), col_gaps=0.8, margins=(1.0, 1.0, 0.8, 0.8))
+    left, right, bottom, top = Plotter.whitespace(fig)
+    assert 0.0 < left < 1.0 and 0.0 < right < 1.0 and 0.0 < bottom < 0.8 and 0.0 < top <= 0.8
+    Plotter.place_grid(fig, axes, width_ratios=(1.0, 1.0), col_gaps=0.8, margins=(0.0, 0.0, 0.0, 0.0))
+    assert Plotter.whitespace(fig)[0] < 0.0                              # the tick labels reach beyond the page
     plt.close(fig)
