@@ -10,15 +10,16 @@ optionally ``pandas`` for DataFrame-aware helpers. No external package is
 imported for the fitting logic.
 """
 
-from __future__ import annotations
+from __future__     import annotations
 
 import math
 
-import numpy as np
+import numpy        as np
 from scipy.optimize import curve_fit as _curve_fit
+from typing         import Union, Callable, Optional
 
 try:
-    import pandas as pd
+    import pandas   as pd
 except ImportError:                                                             # pragma: no cover - optional dependency
     pd = None
 
