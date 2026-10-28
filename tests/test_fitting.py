@@ -142,3 +142,14 @@ def test_thin_subsamples_aligned():
 # ---------------------------------------------
 #! EOF
 # ---------------------------------------------
+
+
+def test_tail_drops_non_finite_and_takes_the_last_part():
+    """tail reduces the last fraction or count of a trajectory with the chosen method; skip_nan chooses between ignoring and propagating NaN."""
+    v = np.array([100.0, 100.0, 1.0, np.nan, 3.0, 5.0])
+    assert Fitter.tail(v, 4) == 3.0                                         # median of [1, 3, 5]
+    assert Fitter.tail(v, 0.5, mean_type="mean") == 4.0                     # mean of [3, 5]
+    assert Fitter.tail(v, 0.0, mean_type="mean") == 5.0                     # at least the last sample
+    assert np.isnan(Fitter.tail(v, 4, skip_nan=False))                      # the NaN in the tail propagates
+    assert Fitter.tail(v, 2, skip_nan=False) == 4.0                         # no NaN in the last two
+    assert np.isnan(Fitter.tail([np.nan, np.nan], 1))

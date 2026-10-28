@@ -294,3 +294,24 @@ def test_helpers_keep_unset_properties():
     Plotter.unset_spines(ax, top=True)
     assert not ax.spines["left"].get_visible() and not ax.spines["top"].get_visible()
     plt.close(fig)
+
+
+def test_data_limits_and_mask_below():
+    """data_limits uses the finite values (above the floor on a log axis); mask_below blanks values under the floor."""
+    series = [np.array([1e-3, 1e-1, np.nan]), np.array([1e-15, 1.0])]
+    assert np.allclose(Plotter.data_limits(series, log=True, margin=10.0, floor=1e-12), (1e-4, 10.0))
+    assert np.allclose(Plotter.data_limits(series, log=True, margin=10.0), (1e-16, 10.0))
+    assert np.allclose(Plotter.data_limits([np.array([0.0, 1.0])], log=False), (-0.08, 1.08))
+    assert Plotter.data_limits([np.array([np.nan])]) is None
+    masked = Plotter.mask_below([1e-15, 1e-3, np.nan], 1e-12)
+    assert np.isnan(masked[0]) and masked[1] == 1e-3 and np.isnan(masked[2])
+
+
+def test_suptitle_leaves_room_and_save_fig_returns_the_path(tmp_path):
+    """suptitle sets the title and the top margin; save_fig(adjust=False) keeps that margin and returns the file."""
+    fig, axes   = Plotter.get_subplots(1, 2, constrained_layout=False)
+    title       = Plotter.suptitle(fig, "system", top=0.8)
+    assert title.get_text() == "system" and fig.subplotpars.top == 0.8
+    path        = Plotter.save_fig(tmp_path, "figure.pdf", fig=fig, adjust=False)
+    assert path == tmp_path / "figure.pdf" and path.exists() and fig.subplotpars.top == 0.8
+    plt.close(fig)

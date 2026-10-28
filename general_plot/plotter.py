@@ -443,6 +443,42 @@ class Plotter(ColorbarMixin, TickMixin):
         return x if isinstance(x, (list, tuple, np.ndarray)) else [x]
 
     @staticmethod
+    def suptitle(fig, text, top=0.82, **kwargs):
+        """Set the figure title and leave room for it: ``top`` is the upper edge of the axes area as a fraction of the figure height.
+
+        For figures without a layout engine (``constrained_layout=False``); the title text is returned. ``kwargs`` go to ``fig.suptitle``.
+        """
+        title = fig.suptitle(text, **kwargs)
+        fig.subplots_adjust(top=top)
+        return title
+
+    @staticmethod
+    def mask_below(values, floor):
+        """``values`` as floats with every entry below ``floor`` (and every NaN) set to NaN, so a log axis draws no clipped spikes."""
+        values = np.asarray(values, dtype=float)
+        return np.where(values >= floor, values, np.nan)
+
+    @staticmethod
+    def data_limits(series, log=True, margin=2.5, floor=None):
+        """Axis limits of the arrays in ``series`` from their finite values; None when none is usable.
+
+        A log axis uses the positive values (and those at or above ``floor`` when given) and widens the range by the factor ``margin``;
+        a linear axis pads it by 8% of its width.
+        """
+        arrays = [np.asarray(values, dtype=float) for values in series]
+        values = np.concatenate([values[np.isfinite(values)] for values in arrays]) if arrays else np.array([])
+        if log:
+            values = values[values > 0.0]
+            if floor is not None:
+                values = values[values >= floor]
+            return (float(values.min() / margin), float(values.max() * margin)) if values.size else None
+        if values.size == 0:
+            return None
+        lo, hi = float(values.min()), float(values.max())
+        pad = 0.08 * (hi - lo) if hi > lo else 0.05 * max(abs(hi), 1.0)
+        return lo - pad, hi + pad
+
+    @staticmethod
     def unify_limits(axes, which='y'):
         """Set all axes to the shared x or y limits."""
 
@@ -5079,7 +5115,10 @@ class Plotter(ColorbarMixin, TickMixin):
                 fig         =   None,
                 **kwargs):
         '''
-        Save figure to a specific directory.
+        Save figure to a specific directory and return the file path.
+
+        ``adjust=True`` (default) resets the subplot margins to the full figure when there is no layout engine; pass ``adjust=False`` to keep
+        margins set by ``subplots_adjust``, ``tight_layout`` or ``Plotter.suptitle``.
         '''
         dir_path = Path(directory)
         dir_path.mkdir(parents=True, exist_ok=True)
@@ -5093,6 +5132,7 @@ class Plotter(ColorbarMixin, TickMixin):
             if layout_engine is None:
                 fig.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)
         fig.savefig(file_path, format=format, dpi=dpi, bbox_inches='tight', **kwargs)
+        return file_path
 
     # alias
     @staticmethod

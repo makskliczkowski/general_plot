@@ -217,7 +217,18 @@ class Fitter:
         return x_ok, y_ok
 
     @staticmethod
-    def aggregate(values, *, mean_type: str = "arithmetic", weights=None, trim_fraction: float = 0.0, eps: float = 1e-300):
+    def tail(values, take_last: Union[float, int] = 0.1, mean_type: str = "median", skip_nan: bool = True, **kwargs):
+        """Reduce the last fraction (float) or count (int) of ``values`` with the ``mean_type`` of ``aggregate`` (median, mean, geometric, harmonic).
+
+        ``skip_nan=True`` ignores non-finite samples (NaN if none is left); ``skip_nan=False`` gives NaN when the tail has one.
+        ``kwargs`` are the other options of ``aggregate`` (``weights``, ``trim_fraction``, ``eps``).
+        """
+        arr   = Fitter._as_1d(values, dtype=float)
+        count = int(take_last * arr.size) if isinstance(take_last, float) else int(take_last)
+        return Fitter.aggregate(arr[arr.size - max(1, min(arr.size, count)):], mean_type=mean_type, skip_nan=skip_nan, **kwargs)
+
+    @staticmethod
+    def aggregate(values, *, mean_type: str = "arithmetic", weights=None, trim_fraction: float = 0.0, eps: float = 1e-300, skip_nan: bool = True):
         """Aggregate samples with a configurable averaging convention.
 
         Parameters
@@ -232,8 +243,12 @@ class Fitter:
             Fraction trimmed from each tail for arithmetic mean (0 <= trim < 0.5).
         eps : float, default=1e-300
             Positivity cutoff for logarithmic/harmonic aggregations.
+        skip_nan : bool, default=True
+            True drops non-finite samples first (the nan-aware mean, median, ...); False returns NaN when any sample is not finite.
         """
         arr  = Fitter._as_1d(values, dtype=float)
+        if not skip_nan and not np.isfinite(arr).all():
+            return np.nan
         arr  = arr[np.isfinite(arr)]
         if arr.size == 0:
             return np.nan
