@@ -192,6 +192,26 @@ def test_add_colorbar_placement_and_mappable_forms():
     plt.close(fig)
 
 
+def test_set_ticks_keeps_the_limits():
+    """A tick (or a replaced label) outside the view must not widen it; the autoscale state is kept."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from general_plot import Plotter
+    fig, ax = plt.subplots()
+    ax.set_ylim(-2.6, -2.0)
+    Plotter.set_ticks(ax, 'y', replace={-1.3: "E/N"})
+    assert ax.get_ylim() == (-2.6, -2.0)
+    Plotter.set_ticks(ax, 'y', [-2.5, -1.0, 3.0])
+    assert ax.get_ylim() == (-2.6, -2.0)
+    fig2, ax2 = plt.subplots()
+    ax2.plot([0, 1], [0, 1])
+    Plotter.set_ticks(ax2, 'x', [0.0, 0.5])
+    assert ax2.get_autoscalex_on()
+    plt.close(fig)
+    plt.close(fig2)
+
+
 def test_set_ticks_every_replace_hide():
     import matplotlib
     matplotlib.use("Agg")

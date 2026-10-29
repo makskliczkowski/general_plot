@@ -33,6 +33,7 @@ class TickMixin:
         """
         set_ticks, get_ticks = (ax.set_xticks, ax.get_xticks) if which == 'x' else (ax.set_yticks, ax.get_yticks)
         set_labels = ax.xaxis.set_ticklabels if which == 'x' else ax.yaxis.set_ticklabels
+        limits = ax.get_xlim() if which == 'x' else ax.get_ylim()
 
         if labels is None:
             set_ticks(ticks)
@@ -48,6 +49,15 @@ class TickMixin:
         else:
             set_ticks(ticks)
             set_labels(labels)
+        TickMixin._restore_limits(ax, which, limits)
+
+    @staticmethod
+    def _restore_limits(ax, which: str, limits):
+        """Put the view limits back after ticks were set: Matplotlib's ``set_*ticks`` widens the view to include a tick outside it.
+
+        ``auto=None`` leaves the autoscale state as it was, so data plotted later still rescales an axis whose limits were never set.
+        """
+        (ax.set_xlim if which == 'x' else ax.set_ylim)(*limits, auto=None)
 
     @staticmethod
     def set_ticks(ax, which: str = 'x', ticks=None, *, step=None, n=None, every=None, offset: int = 0, labels=None, replace=None, replace_rotation=None, hide=None, hide_ticks=None, fmt: str = '{:g}', tol: float = 1e-9):
@@ -57,7 +67,8 @@ class TickMixin:
         Positions: `ticks`; else multiples of `step` inside the current limits; else `n` equally spaced ticks
         over the limits; else the current ticks inside the limits. `hide_ticks` removes selected major tick
         positions. Labels: `labels` if given, else `fmt.format(tick)`. Then `every`, `replace` and `hide`
-        act on the labels; `hide` keeps the tick mark.
+        act on the labels; `hide` keeps the tick mark. The axis limits never change: a tick outside them
+        (Matplotlib would widen the view to show it) is set but not visible.
 
         Parameters
         ----------
@@ -73,7 +84,7 @@ class TickMixin:
         replace : dict, optional
             {position: label}. Replaces the label of the tick at that position, for example {0.5: "1/2"}. A position
             that is not a tick yet becomes one (unless `labels` are given), so an axis label can stand in for a tick
-            label: replace={-1.5: r"$E/N$"}.
+            label: replace={-1.5: r"$E/N$"}. Put the position inside the limits, or the label is not visible.
         replace_rotation : float, optional
             Rotation in degrees of the replaced labels only (e.g. 90 for an axis label set along a y axis).
         hide : array-like, optional
@@ -151,7 +162,9 @@ class TickMixin:
             out     = ['' if near(t, pos) else l for t, l in zip(ticks, out)]
         for pos, text in (replace or {}).items():
             out     = [text if near(t, pos) else l for t, l in zip(ticks, out)]
+        limits      = ax.get_xlim() if which == 'x' else ax.get_ylim()
         (ax.set_xticks if which == 'x' else ax.set_yticks)(ticks, labels=out)
+        TickMixin._restore_limits(ax, which, limits)
         if replace and replace_rotation is not None:
             for tick, text in zip(ticks, (ax.get_xticklabels() if which == 'x' else ax.get_yticklabels())):
                 if any(near(tick, pos) for pos in replace):
