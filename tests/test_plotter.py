@@ -375,3 +375,15 @@ def test_whitespace_reports_the_blank_margins_in_inches():
     Plotter.place_grid(fig, axes, width_ratios=(1.0, 1.0), col_gaps=0.8, margins=(0.0, 0.0, 0.0, 0.0))
     assert Plotter.whitespace(fig)[0] < 0.0                              # the tick labels reach beyond the page
     plt.close(fig)
+
+
+def test_auto_scale_and_symlog_ticks():
+    assert Plotter.auto_scale([1.0, 2.0, 50.0]) == "linear"
+    assert Plotter.auto_scale([1e-3, 1.0], [0.5]) == "log"
+    assert Plotter.auto_scale([-1.0, 1e3]) == "linear"
+    fig, ax = plt.subplots()
+    ax.plot([0, 1], [-50.0, 2.0])
+    Plotter.set_symlog(ax, "y", linthresh=3.0, ticks=(-100, -10, 0, 10, 100))
+    assert ax.get_yscale() == "symlog"
+    assert list(ax.get_yticks()) == [-10, 0]
+    plt.close(fig)

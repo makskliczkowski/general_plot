@@ -534,6 +534,28 @@ class Plotter(ColorbarMixin, TickMixin):
         return lo - pad, hi + pad
 
     @staticmethod
+    def auto_scale(*series, decades=2.0):
+        """'log' when the finite values of all ``series`` are positive and span more than ``decades`` decades, else 'linear'."""
+        values = np.concatenate([np.ravel(np.asarray(values, dtype=float)) for values in series])
+        values = values[np.isfinite(values)]
+        if values.size == 0 or values.min() <= 0.0:
+            return 'linear'
+        return 'log' if values.max() > 10.0 ** decades * values.min() else 'linear'
+
+    @staticmethod
+    def set_symlog(ax, which='y', linthresh=1.0, ticks=None):
+        """Symmetric log axis, linear within +-``linthresh``: residuals near zero stay visible next to ones orders of magnitude larger.
+
+        ``ticks`` are kept where they fall inside the current limits, so call it after plotting.
+        """
+        axis = ax.yaxis if which == 'y' else ax.xaxis
+        (ax.set_yscale if which == 'y' else ax.set_xscale)('symlog', linthresh=linthresh)
+        if ticks is not None:
+            lo, hi = ax.get_ylim() if which == 'y' else ax.get_xlim()
+            axis.set_ticks([t for t in ticks if lo <= t <= hi])
+            axis.set_major_formatter(mpl.ticker.FormatStrFormatter('%g'))
+
+    @staticmethod
     def unify_limits(axes, which='y'):
         """Set all axes to the shared x or y limits."""
 
