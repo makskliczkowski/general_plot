@@ -42,6 +42,7 @@ The library is organized into dedicated functional modules under `general_plot`:
 
 | Module | Contents |
 | --- | --- |
+| `general_plot.defaults` | `default()`: figure defaults (width, height, cmap, floor, margin, dpi, formats) read as `D['width']` or `D.width`, with per-call overrides |
 | `general_plot.style` | Style presets (`publication`, `nature`, `science`, `poster`), cycle iterators, and normalizers |
 | `general_plot.axes` | `AxesList` wrapper with 1D and 2D indexing, named panels, and `IgnoredAxis` proxy |
 | `general_plot.colors` | Colormaps (including segment truncation via `cmap`), journal palettes, conversions, and perceptual transforms |
