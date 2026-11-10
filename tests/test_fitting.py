@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from general_plot.fitting import Fitter, FitterParams, thin
+from general_plot.fitting import Fitter, FitterParams, thin, thin_log
 
 
 @pytest.fixture(scope="module")
@@ -134,6 +134,14 @@ def test_thin_subsamples_aligned():
     # Nothing to thin: original arrays returned.
     a, b    = thin(x, y, max_points=200)
     assert len(a) == 100 and len(b) == 100
+
+
+def test_thin_log_keeps_ends_and_is_log_spaced():
+    """thin_log() keeps the first and last index, returns at most max_points, and leaves a short input whole."""
+    keep = thin_log(10_000, 50)
+    assert len(keep) <= 50 and keep[0] == 0 and keep[-1] == 9_999
+    assert np.sum(keep < 100) > np.sum(keep > 9_900)        # denser at small n
+    assert np.array_equal(thin_log(5, 50), np.arange(5))
 
     # Empty input returns an empty tuple.
     assert thin() == ()

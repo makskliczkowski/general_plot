@@ -688,6 +688,17 @@ def thin(*arrays, max_points=None) -> tuple:
     stride  = max(1, int(np.ceil(n / max_points)))
     return tuple(np.asarray(a)[::stride] for a in arrays)
 
+
+def thin_log(n, max_points) -> np.ndarray:
+    """Indices of at most `max_points` of `n` samples, evenly spaced on a log axis; the first and the last are kept.
+
+    Use it for a trajectory drawn on a log x axis, where `thin` (even stride) would leave the first steps too sparse. The indices are
+    returned, so that several arrays can be sliced together.
+    """
+    if n <= max_points:
+        return np.arange(n)
+    return np.unique(np.concatenate([[0], np.geomspace(1, n - 1, max_points - 1).round().astype(int)]))
+
 # ---------------------------------------------
 #! EOF
 # ---------------------------------------------

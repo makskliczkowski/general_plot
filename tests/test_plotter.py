@@ -340,6 +340,17 @@ def test_data_limits_and_mask_below():
     assert np.isnan(masked[0]) and masked[1] == 1e-3 and np.isnan(masked[2])
 
 
+def test_log_bin_median():
+    """Two decades at one bin per decade give two bins (center = geometric mean); x <= 0 and non-finite y are left out."""
+    x = np.array([0.0, 1.0, 2.0, 10.0, 20.0, 30.0])
+    y = np.array([9.0, 1.0, 3.0, 5.0, 7.0, np.nan])
+    center, median, low, high = Plotter.log_bin_median(x, y, 1)
+    assert np.allclose(center, [np.sqrt(2.0), np.sqrt(200.0)])
+    assert np.allclose(median, [2.0, 6.0]) and np.allclose(low, [1.0, 5.0]) and np.allclose(high, [3.0, 7.0])
+    with pytest.raises(ValueError):
+        Plotter.log_bin_median([-1.0], [1.0], 1)
+
+
 def test_suptitle_leaves_room_and_save_fig_returns_the_path(tmp_path):
     """suptitle sets the title and the top margin; save_fig(adjust=False) keeps that margin and returns the file."""
     fig, axes   = Plotter.get_subplots(1, 2, constrained_layout=False)

@@ -7,7 +7,7 @@ from .colors        import DEFAULT_PALETTES, adjust_color, blend, cmap, darken, 
 from .config        import FigureConfig, KPathConfig, KSpaceConfig, PlotStyle, SpectralConfig
 from .data_loader   import filter_results
 from .defaults      import DEFAULTS, Defaults, default
-from .fitting       import Fitter, FitterParams, find_maximum_idx, find_nearest_idx, find_nearest_val, mod_ceil, mod_euc, mod_floor, mod_round, mod_trunc, next_power, prev_power, thin
+from .fitting       import Fitter, FitterParams, find_maximum_idx, find_nearest_idx, find_nearest_val, mod_ceil, mod_euc, mod_floor, mod_round, mod_trunc, next_power, prev_power, thin, thin_log
 from .formatters    import CustomFormatter, MathTextSciFormatter, PercentFormatter, set_formatter
 from .help          import PLOTTER_HELP
 from .io            import MatrixPrinter, PlotterSave
@@ -71,6 +71,7 @@ __all__             = [
                         "reset_linestyles",
                         "set_formatter",
                         "thin",
+                        "thin_log",
                         "to_hex",
                         "to_rgba",
                         "with_alpha",

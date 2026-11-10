@@ -514,6 +514,24 @@ class Plotter(ColorbarMixin, TickMixin):
         return np.where(values >= floor, values, np.nan)
 
     @staticmethod
+    def log_bin_median(x, y, bins_per_decade):
+        """Median and range of ``y`` in bins of equal width in ``log10 x``: ``(x_center, median, low, high)``, one entry per non-empty bin.
+
+        A smoothed view of a curve that jumps from step to step: the median shows the trend and ``[low, high]`` the spread inside a bin.
+        Points with ``x <= 0`` or a non-finite ``y`` (for example values blanked by ``mask_below``) are left out. ``x_center`` is the geometric
+        mean of the ``x`` in the bin. A bin with one point has ``low = median = high``.
+        """
+        x, y    = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+        keep    = (x > 0) & np.isfinite(y)
+        if not keep.any():
+            raise ValueError("log_bin_median needs at least one point with x > 0 and a finite y")
+        x, y    = x[keep], y[keep]
+        index   = np.floor((np.log10(x) - np.log10(x.min())) * bins_per_decade).astype(int)
+        order   = np.argsort(index, kind="stable")
+        groups  = np.split(order, np.flatnonzero(np.diff(index[order])) + 1)
+        return (np.array([np.exp(np.mean(np.log(x[g]))) for g in groups]), np.array([np.median(y[g]) for g in groups]), np.array([y[g].min() for g in groups]), np.array([y[g].max() for g in groups]))
+
+    @staticmethod
     def data_limits(series, log=True, margin=2.5, floor=None):
         """Axis limits of the arrays in ``series`` from their finite values; None when none is usable.
 
