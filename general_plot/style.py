@@ -179,7 +179,9 @@ def configure_style(style: str = "publication", font_size: int = 10, use_latex: 
     **overrides : dict
         Additional rcParams overrides. Underscores are converted to dots.
     """
-    mpl.rcParams.update(mpl.rcParamsDefault)
+    # rcdefaults, not rcParams.update(rcParamsDefault): it keeps the session keys (interactive, backend, ...). Resetting interactive to False
+    # stops a Jupyter inline backend from showing figures, so a second call in a notebook hid every later figure.
+    mpl.rcdefaults()
 
     if style != "default":
         try:

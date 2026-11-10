@@ -17,14 +17,15 @@ def test_configure_style_presets_and_overrides():
 
 
 
-def test_configure_style_twice_gives_the_same_rcparams_and_keeps_the_backend():
-    """A second call with the same arguments changes nothing and does not reset the backend (a notebook calls it after the import)."""
+def test_configure_style_twice_gives_the_same_rcparams_and_keeps_the_session_keys():
+    """A second call with the same arguments changes nothing and keeps the session keys backend and interactive."""
     backend = mpl.rcParams["backend"]
+    mpl.interactive(True)                                       # as in a Jupyter session; regression: the reset set it to False and hid the figures
     configure_style(font_size=8)
     first   = {key: str(value) for key, value in mpl.rcParams.items()}
     configure_style(font_size=8)
     assert {key: str(value) for key, value in mpl.rcParams.items()} == first
-    assert mpl.rcParams["backend"] == backend
+    assert mpl.rcParams["backend"] == backend and mpl.is_interactive()
     assert mpl.rcParams["axes.labelsize"] == 8 and mpl.rcParams["xtick.labelsize"] == 7
 
 def test_cycles_and_normalizers():
