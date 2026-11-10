@@ -2871,8 +2871,9 @@ class Plotter(ColorbarMixin, TickMixin):
         base_label = Plotter._rc_size('axes.labelsize')
         base_tick  = Plotter._rc_size('xtick.labelsize')
         if is_inset:
-            default_fs = max(6.0, base_label - 2.5)
-            default_ts = max(5.0, base_tick - 2.5)
+            # the sizes given to get_inset; an inset made otherwise takes the label and tick sizes of the style minus 2.5 pt
+            default_fs = getattr(ax, '_inset_fontsize', max(6.0, base_label - 2.5))
+            default_ts = getattr(ax, '_inset_ticksize', max(5.0, base_tick - 2.5))
         else:
             default_fs = base_label
             default_ts = base_tick
@@ -4632,14 +4633,16 @@ class Plotter(ColorbarMixin, TickMixin):
             ax2.set_facecolor(facecolor)
         ax2.patch.set_alpha(facealpha)
 
-        base_label = Plotter._rc_size('axes.labelsize')
-        base_tick  = Plotter._rc_size('xtick.labelsize')
-        ins_fs     = fontsize if fontsize is not None else max(6.0, base_label - 2.5)
-        ins_ts     = labelsize_tick if labelsize_tick is not None else max(5.0, base_tick - 2.5)
-        ins_maj_l  = tick_length_major if tick_length_major is not None else 2.5
-        ins_min_l  = tick_length_minor if tick_length_minor is not None else 1.2
-        ins_w      = tick_width if tick_width is not None else 0.75
-        ins_dir    = tick_direction or Plotter.TICK_DIRECTION
+        base_label                                  = Plotter._rc_size('axes.labelsize')
+        base_tick                                   = Plotter._rc_size('xtick.labelsize')
+        ins_fs                                      = fontsize if fontsize is not None else max(6.0, base_label - 2.5)
+        ins_ts                                      = labelsize_tick if labelsize_tick is not None else max(5.0, base_tick - 2.5)
+        # kept on the inset: set_ax_params takes them as its inset defaults, so a later call without sizes does not reset them
+        ax2._inset_fontsize, ax2._inset_ticksize    = ins_fs, ins_ts
+        ins_maj_l                                   = tick_length_major if tick_length_major is not None else 2.5
+        ins_min_l                                   = tick_length_minor if tick_length_minor is not None else 1.2
+        ins_w                                       = tick_width if tick_width is not None else 0.75
+        ins_dir                                     = tick_direction or Plotter.TICK_DIRECTION
 
         ax2.tick_params(axis='both', which='major', labelsize=ins_ts, length=ins_maj_l, width=ins_w, direction=ins_dir)
         ax2.tick_params(axis='both', which='minor', labelsize=ins_ts, length=ins_min_l, width=ins_w, direction=ins_dir)

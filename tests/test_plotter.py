@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
-from general_plot import Plotter
+from general_plot import Plotter, configure_style
 
 
 def test_plotting_primitives():
@@ -267,6 +267,18 @@ def test_letter_density_inset_log_grid():
     assert any("tight_layout" in str(x.message) for x in w)
     plt.close("all")
 
+
+
+def test_set_ax_params_keeps_the_font_sizes_given_to_get_inset():
+    """Regression: set_ax_params reset an inset to the style sizes minus 2.5 pt, so get_inset(fontsize=...) had no effect."""
+    configure_style(font_size=8)
+    fig, ax = plt.subplots()
+    inset   = Plotter.get_inset(ax, position=[0.1, 0.1, 0.4, 0.4], fontsize=7, labelsize_tick=6)
+    inset.plot([1, 10], [1, 2])
+    Plotter.set_ax_params(inset, xscale="log", ylabel="m")
+    fig.canvas.draw()
+    assert inset.yaxis.label.get_size() == 7
+    assert inset.xaxis.get_ticklabels()[0].get_size() == 6
 
 def test_get_inset_background_style():
     """The inset background accepts an explicit face color and opacity."""
