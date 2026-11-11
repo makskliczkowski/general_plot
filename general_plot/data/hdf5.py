@@ -182,6 +182,54 @@ class HDF5Manager:
                 report.update(result=result, items=1)
                 return result
     @staticmethod
+    def read_record(path: PathLike, keys: Iterable[str] = (), *, groups: Iterable[str] = (), verbose: bool = False) -> tuple[dict, dict]:
+        """Read JSON metadata and selected datasets in one file opening.
+
+        Parameters
+        ----------
+        path : path-like
+            HDF5 file with the JSON 'metadata' attribute.
+        keys : iterable of str
+            Required dataset paths. Missing datasets raise KeyError.
+        groups : iterable of str
+            Optional group paths. Read all datasets below each existing group.
+            Missing groups contribute no datasets. Existing non-groups raise
+            TypeError. Unselected datasets are not materialized.
+        verbose : bool
+            Emit an INFO timing and memory report through general_plot.data.
+
+        Returns
+        -------
+        tuple of dict
+            Metadata and detached arrays keyed by full dataset paths. Overlapping
+            selections read each dataset once. No project schema or saved Python
+            objects are inferred. Missing or invalid metadata raises an error.
+        """
+        if isinstance(keys, str) or isinstance(groups, str):
+            raise TypeError("keys and groups must be iterables of paths, not strings")
+        with measured("hdf5.read_record", verbose) as report:
+            import h5py
+            with h5py.File(path, "r") as file:
+                metadata = json.loads(file.attrs["metadata"])
+                if not isinstance(metadata, dict):
+                    raise TypeError("metadata must be a JSON object")
+                selected = {}
+                for name in keys:
+                    dataset = file[name]
+                    if not isinstance(dataset, h5py.Dataset):
+                        raise TypeError(f"expected HDF5 dataset: {name!r}")
+                    selected[dataset.name.lstrip("/")] = None
+                for name in groups:
+                    if name in file:
+                        group = file[name]
+                        if not isinstance(group, h5py.Group):
+                            raise TypeError(f"expected HDF5 group: {name!r}")
+                        selected.update(dict.fromkeys(f"{group.name}/{key}".lstrip("/") for key in _dataset_keys(group)))
+                arrays = {name: _read_dataset(file[name], (), None) for name in selected}
+                report.update(result=arrays, items=len(arrays))
+                return metadata, arrays
+
+    @staticmethod
     def metadata(path: PathLike) -> dict:
         """Read the JSON metadata attribute without reading datasets.
 

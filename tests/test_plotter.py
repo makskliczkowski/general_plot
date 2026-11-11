@@ -171,6 +171,30 @@ def test_pcolormesh_band_bar_smoke():
     plt.close(fig)
 
 
+def test_add_colorbar_convenience_sizes():
+    """Scalar label and tick sizes replace the nested dicts; an explicit dict entry wins."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from general_plot import Plotter
+    fig, ax   = plt.subplots()
+    mesh      = ax.pcolormesh(np.random.rand(3, 3))
+    _, cax    = Plotter.add_colorbar(fig, ax=ax, mappable=mesh, orientation="horizontal", label=r"$C$",
+                                     labelsize=9, labelpad=5, labelsize_tick=6, tick_pad=2, tick_length=3)
+    tick      = cax.xaxis.majorTicks[0]
+    assert cax.xaxis.label.get_fontsize() == 9
+    assert cax.xaxis.labelpad == 5
+    assert tick.label1.get_fontsize() == 6
+    assert tick.get_pad() == 2
+    assert tick.tick1line.get_markersize() == 3
+
+    _, cax    = Plotter.add_colorbar(fig, ax=ax, mappable=mesh, orientation="horizontal", label="x",
+                                     labelsize=9, labelsize_tick=6, label_kwargs={"fontsize": 11}, tick_params={"labelsize": 7})
+    assert cax.xaxis.label.get_fontsize() == 11
+    assert cax.xaxis.majorTicks[0].label1.get_fontsize() == 7
+    plt.close(fig)
+
+
 def test_add_colorbar_placement_and_mappable_forms():
     import matplotlib
     matplotlib.use("Agg")
@@ -327,6 +351,25 @@ def test_helpers_keep_unset_properties():
     Plotter.unset_spines(ax, top=True)
     assert not ax.spines["left"].get_visible() and not ax.spines["top"].get_visible()
     plt.close(fig)
+
+
+def test_ax_off_is_static_and_takes_one_axis_a_list_or_a_callback():
+    """ax_off turns axes off from the class itself, for a single axis, a list or a callback."""
+    fig, axes = plt.subplots(1, 3)
+    Plotter.ax_off(axes[0])
+    assert not axes[0].axison
+
+    Plotter.ax_off([axes[1], axes[2]])                                          # a list turns off each axis
+    assert not axes[1].axison and not axes[2].axison
+
+    fig2, ax2 = plt.subplots()
+    Plotter.ax_off(lambda off: off(ax2))                                       # a callback receives ax_off
+    assert not ax2.axison
+
+    with pytest.raises(TypeError):
+        Plotter.ax_off("not an axis")
+    plt.close(fig)
+    plt.close(fig2)
 
 
 def test_data_limits_and_mask_below():

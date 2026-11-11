@@ -49,12 +49,17 @@ class ColorbarMixin:
                     orientation         : str = 'vertical',
                     label               : str = '',
                     label_kwargs        : dict = None,
+                    labelsize           : Optional[float] = None,
+                    labelpad            : Optional[float] = None,
                     title               : str = '',
                     title_kwargs        : dict = None,
                     ticks               : Optional[Union[List, np.ndarray]] = None,
                     ticklabels          : Optional[List[str]] = None,
                     tick_location       : str = 'auto',
                     tick_params         : dict = None,
+                    labelsize_tick      : Optional[float] = None,
+                    tick_pad            : Optional[float] = None,
+                    tick_length         : Optional[float] = None,
                     extend              : str = None,
                     format              : Optional[Union[str, mpl.ticker.Formatter]] = None,
                     discrete            : Union[bool, int] = False,
@@ -105,7 +110,13 @@ class ColorbarMixin:
         label : str, default=''
             Axis label along the long side of the colorbar.
         label_kwargs : dict, optional
-            Passed to ColorbarBase.set_label (e.g., dict(fontsize=..., labelpad=...)).
+            Passed to ColorbarBase.set_label (e.g., dict(fontsize=..., labelpad=...)). An entry given here wins over
+            the `labelsize` and `labelpad` conveniences.
+        labelsize : float, optional
+            Font size of the colorbar label. Shorthand for ``label_kwargs={'fontsize': ...}``.
+        labelpad : float, optional
+            Distance of the colorbar label from the bar, in points. Shorthand for
+            ``label_kwargs={'labelpad': ...}``; use it instead of moving the label with axes coordinates.
         title : str, default=''
             Title text set at the end/top of the colorbar. For horizontal bars, the title is placed to the side.
         title_kwargs : dict, optional
@@ -117,7 +128,14 @@ class ColorbarMixin:
         tick_location : {'auto','left','right','top','bottom'}, default='auto'
             Side on which to draw ticks/labels (respects `orientation`).
         tick_params : dict, optional
-            Passed to cbar.ax.tick_params (e.g., dict(length=4, width=1, direction='in')).
+            Passed to cbar.ax.tick_params (e.g., dict(length=4, width=1, direction='in')). An entry given here wins
+            over `labelsize_tick`, `tick_pad` and `tick_length`.
+        labelsize_tick : float, optional
+            Font size of the tick labels. Shorthand for ``tick_params={'labelsize': ...}``.
+        tick_pad : float, optional
+            Distance of the tick labels from the bar, in points. Shorthand for ``tick_params={'pad': ...}``.
+        tick_length : float, optional
+            Length of the major tick marks, in points. Shorthand for ``tick_params={'length': ...}``.
         extend : {'neither','both','min','max','neutral'}, default='neutral'
             Colorbar extension behavior. Standard Matplotlib values are 'neither', 'both', 'min', 'max'.
             'neutral' is treated as a pass-through here and may behave like 'neither' depending on Matplotlib.
@@ -160,7 +178,8 @@ class ColorbarMixin:
             fig, [0.2, 0.9, 0.6, 0.03], data,
             scale='log', orientation='horizontal',
             format='%.0e', extend='both',
-            tick_location='top', label='Conductance'
+            tick_location='top', label='Conductance',
+            labelsize=8, labelpad=3, labelsize_tick=7, tick_pad=2, tick_length=3
         )
 
         # Discrete categorical-like bar with custom tick labels
@@ -176,6 +195,15 @@ class ColorbarMixin:
             boundaries=[0, 0.5, 2.0, 10.0], spacing='proportional'
         )
         """
+        # Convenience sizes fill the dicts they belong to; an explicit dict entry keeps priority.
+        label_kwargs    = {**({'fontsize': labelsize} if labelsize is not None else {}),
+                           **({'labelpad': labelpad} if labelpad is not None else {}),
+                           **(label_kwargs or {})}
+        tick_params     = {**({'labelsize': labelsize_tick} if labelsize_tick is not None else {}),
+                           **({'pad': tick_pad} if tick_pad is not None else {}),
+                           **({'length': tick_length} if tick_length is not None else {}),
+                           **(tick_params or {})}
+
         # 1. Handle Normalization and Mappable
         if isinstance(mappable, ColormapResult):
             mappable = mappable.mappable
@@ -254,8 +282,7 @@ class ColorbarMixin:
 
         # Labels and Titles
         if label:
-            l_kwargs = label_kwargs or {}
-            cbar.set_label(label, **l_kwargs)
+            cbar.set_label(label, **label_kwargs)
 
         if title:
             # Smart default padding for title
@@ -286,8 +313,7 @@ class ColorbarMixin:
         cbar.ax.tick_params(which='major', length=Plotter.TICK_LENGTH_MAJOR, width=Plotter.TICK_WIDTH,
                             direction=Plotter.TICK_DIRECTION, labelsize=Plotter.default_labelsize())
         cbar.ax.tick_params(which='minor', length=Plotter.TICK_LENGTH_MINOR, width=Plotter.TICK_WIDTH, direction=Plotter.TICK_DIRECTION)
-        if tick_params:
-            cbar.ax.tick_params(**tick_params)
+        cbar.ax.tick_params(**tick_params)
 
         # Utilities
         if invert:

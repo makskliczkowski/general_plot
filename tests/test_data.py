@@ -510,3 +510,38 @@ def test_data_import_does_not_load_plotting_or_change_style(tmp_path):
         from general_plot import blend
         assert mpl.rcParams['font.size'] == 17
     ''')], cwd=tmp_path, env=environment, check=True, capture_output=True, text=True)
+
+
+def test_read_record_selects_groups_and_metadata_in_one_opening(tmp_path, monkeypatch):
+    import h5py
+    from general_plot.data import HDF5Manager
+    from general_plot.data import hdf5
+    path = HDF5Manager.write(tmp_path / 'record.h5', {
+        'history/energy': np.array([1 + 2j, 3 + 4j]), 'observations/text': ['first', 'last'],
+        'observations/nested/matrix': np.eye(2), 'unused/data': np.arange(5)}, metadata={'seed': 11})
+    opened, loaded = [], []
+    original_open, original_read = h5py.File, hdf5._read_dataset
+    def open_file(*args, **kwargs):
+        opened.append(args[0])
+        return original_open(*args, **kwargs)
+    def read_dataset(dataset, selection, transform):
+        loaded.append(dataset.name)
+        return original_read(dataset, selection, transform)
+    monkeypatch.setattr(h5py, 'File', open_file)
+    monkeypatch.setattr(hdf5, '_read_dataset', read_dataset)
+    metadata, arrays = HDF5Manager.read_record(path, ['/history/energy'], groups=('history', 'observations', 'absent'))
+    assert len(opened) == 1
+    assert metadata['seed'] == 11
+    assert set(arrays) == {'history/energy', 'observations/text', 'observations/nested/matrix'}
+    assert len(loaded) == 3
+    assert np.array_equal(arrays['history/energy'], [1 + 2j, 3 + 4j])
+    assert arrays['observations/text'].tolist() == ['first', 'last']
+    assert np.array_equal(arrays['observations/nested/matrix'], np.eye(2))
+    with pytest.raises(KeyError):
+        HDF5Manager.read_record(path, ['missing/required'])
+    with pytest.raises(TypeError, match='expected HDF5 group'):
+        HDF5Manager.read_record(path, groups=['history/energy'])
+    with pytest.raises(TypeError, match='expected HDF5 dataset'):
+        HDF5Manager.read_record(path, ['history'])
+    with pytest.raises(TypeError, match='iterables'):
+        HDF5Manager.read_record(path, 'history/energy')

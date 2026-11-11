@@ -128,17 +128,29 @@ class Plotter(ColorbarMixin, TickMixin):
         self.font_size      = font_size
         self.dpi            = dpi
 
-    def ax_off(self, ax: Union[plt.Axes, List[plt.Axes]]):
+    @staticmethod
+    def ax_off(ax: Union[plt.Axes, List[plt.Axes], Callable]):
         """
-        Completely turn off the axis (no ticks, labels, spines, data)."""
-        """"""
+        Turn an axis completely off: no ticks, labels, spines or drawn data (``ax.set_axis_off()``).
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes, list of Axes, or callable
+            One axis; a list or tuple of axes, each turned off; or a callable that receives
+            ``Plotter.ax_off`` and applies it to the axes it owns.
+
+        Raises
+        ------
+        TypeError
+            If ``ax`` is none of the above.
+        """
         if isinstance(ax, (list, tuple)):
             for a in ax:
-                self.ax_off(a)
+                Plotter.ax_off(a)
         elif isinstance(ax, plt.Axes):
             ax.set_axis_off()
         elif callable(ax):
-            ax(self.ax_off)
+            ax(Plotter.ax_off)
         else:
             raise TypeError("ax must be a matplotlib Axes, list of Axes, or callable that accepts an ax_off function.")
 

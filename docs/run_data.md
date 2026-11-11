@@ -27,6 +27,20 @@ values      = HDF5Manager.read("runs/example.h5", matrices)
 
 Dataset paths are relative to the file root. `pattern` is a glob applied to complete paths. `keys`, `describe`, membership and iteration read headers only. `LazyHDF5` is a mapping, so `keys()`, `get()`, `values()` and `items()` use normal Python mapping behavior. Iterating values or items loads the corresponding arrays. Index access caches complete datasets. `clear_cache()` releases those array references. Neither the manager nor the lazy mapping retains open HDF5 handles. A lazy mapping is a snapshot of dataset headers. Recreate it after replacing the source file.
 
+## Read a complete record in one opening
+
+```python
+metadata, arrays = HDF5Manager.read_record(
+    "runs/example.h5", ["history/energy"], groups=("observations", "reference"))
+```
+
+`keys` lists required datasets. Missing keys raise errors. `groups` lists optional
+groups whose datasets are included recursively when present. Missing groups add
+nothing. Arrays are keyed by full paths relative to the file root. Overlapping
+selections read each dataset once. Metadata and arrays come from the same open
+file, which is closed before return. Unselected arrays are not read. The project
+adapter decides how to turn those arrays into its own result objects.
+
 ## Select elements and apply NumPy operations
 
 ```python
