@@ -56,6 +56,27 @@ The library is organized into dedicated functional modules under `general_plot`:
 
 ## Usage
 
+### Printed figure defaults
+
+```python
+from general_plot import Plotter, configure_style
+
+D = configure_style()  # apply style and get all sizes
+fig, axes = Plotter.get_subplots()  # D.width by D.height
+# D.one_column, D.two_column, D.font_size
+# D.legend_size, D.letter_size, D.inset_size
+
+D = configure_style(font_size=10, column_pt=250, points_per_inch=72.27,
+                    width=5, height=2.5, legend_size=8)
+```
+
+Defaults are 246/510 points for column/text widths, divided by 70 points per
+inch. Figures default to one column wide and half as high. The font size is 9.
+Legend, panel-letter and inset sizes are smaller by 2.5, 1.5 and 2 points.
+Derived sizes follow each call's overrides. Settings are returned as attributes
+or mapping entries. Explicit subplot dimensions and rcParams overrides still
+apply. `default(...)` returns the same settings without applying style.
+
 ### Colors, Length Caps, and Thinning
 
 The curve-plotting primitives (`plot`, `scatter`, `semilogy`, `semilogx`, `loglog`, `errorbar`, `plot_fit`) default their line/marker color to `None`, so matplotlib advances its color cycle automatically (C0, C1, ...) across a sequence of calls. Pass an explicit `color=`/`c=` to pin a specific color instead.

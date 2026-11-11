@@ -7,13 +7,13 @@ from general_plot import DEFAULTS, Defaults, Plotter, default
 
 def test_defaults_read_as_items_and_attributes_and_overrides_do_not_leak():
     D = default()
-    assert isinstance(D, Defaults) and D["width"] == D.width == DEFAULTS["width"] == 7.0
+    assert isinstance(D, Defaults) and D["width"] == D.width == DEFAULTS["width"] == 246.0 / 70
     assert D.cmap == "viridis" and D.floor == 1e-12 and D.formats == ("png", "pdf")
 
     narrow = default(width=3.5)
     narrow.height = 2.0
     assert narrow.width == 3.5 and narrow["height"] == 2.0
-    assert DEFAULTS["width"] == 7.0 and DEFAULTS["height"] == 2.8 and default().height == 2.8  # the shared table is untouched
+    assert DEFAULTS["width"] == 246.0 / 70 and DEFAULTS["height"] == 0.5 * DEFAULTS["width"] and default().height == DEFAULTS["height"]  # the shared table is untouched
     assert narrow.copy() == narrow and narrow.copy() is not narrow
 
 

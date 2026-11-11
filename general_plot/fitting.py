@@ -218,15 +218,57 @@ class Fitter:
         return x_ok, y_ok
 
     @staticmethod
+    def tail_slice(length: int, take_last: Union[float, int] = 0.1) -> slice:
+        """Select a final fraction or count without reading the array.
+
+        Parameters
+        ----------
+        length : int
+            Nonnegative length of the selected axis.
+        take_last : float or int
+            Fraction in [0, 1] or nonnegative count. Fractions round down.
+            At least one item is selected when length is positive, including
+            when take_last is zero. Counts above length select the whole axis.
+
+        Returns
+        -------
+        slice
+            Nonnegative bounds suitable for NumPy or HDF5 indexing. An empty
+            axis gives slice(0, 0). Invalid lengths or selections raise errors.
+        """
+        if isinstance(length, (bool, np.bool_)) or not isinstance(length, (int, np.integer)):
+            raise TypeError("length must be an integer")
+        
+        if length < 0:
+            raise ValueError("length must be nonnegative")
+        
+        if isinstance(take_last, (bool, np.bool_)):
+            raise TypeError("take_last must be a float fraction or integer count")
+        
+        if isinstance(take_last, (float, np.floating)):
+            if not 0 <= take_last <= 1:
+                raise ValueError("take_last fraction must be in [0, 1]")
+            count = int(take_last * length)
+        elif isinstance(take_last, (int, np.integer)):
+            if take_last < 0:
+                raise ValueError("take_last count must be nonnegative")
+            count = int(take_last)
+        else:
+            raise TypeError("take_last must be a float fraction or integer count")
+        
+        return slice(max(0, length - max(1, count)), length)
+
+    @staticmethod
     def tail(values, take_last: Union[float, int] = 0.1, mean_type: str = "median", skip_nan: bool = True, **kwargs):
         """Reduce the last fraction (float) or count (int) of ``values`` with the ``mean_type`` of ``aggregate`` (median, mean, geometric, harmonic).
 
         ``skip_nan=True`` ignores non-finite samples (NaN if none is left); ``skip_nan=False`` gives NaN when the tail has one.
         ``kwargs`` are the other options of ``aggregate`` (``weights``, ``trim_fraction``, ``eps``).
+        Selection follows ``tail_slice``. Negative counts and fractions outside
+        [0, 1] raise ValueError instead of being clamped to an endpoint.
         """
         arr   = Fitter._as_1d(values, dtype=float)
-        count = int(take_last * arr.size) if isinstance(take_last, float) else int(take_last)
-        return Fitter.aggregate(arr[arr.size - max(1, min(arr.size, count)):], mean_type=mean_type, skip_nan=skip_nan, **kwargs)
+        return Fitter.aggregate(arr[Fitter.tail_slice(arr.size, take_last)], mean_type=mean_type, skip_nan=skip_nan, **kwargs)
 
     @staticmethod
     def aggregate(values, *, mean_type: str = "arithmetic", weights=None, trim_fraction: float = 0.0, eps: float = 1e-300, skip_nan: bool = True):

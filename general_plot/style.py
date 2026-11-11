@@ -6,9 +6,11 @@ import itertools
 import warnings
 from typing import Any, Dict, List, Optional
 
-import matplotlib as mpl
-import matplotlib.colors as mcolors
-import matplotlib.pyplot as plt
+import matplotlib           as mpl
+import matplotlib.colors    as mcolors
+import matplotlib.pyplot    as plt
+
+from .defaults import DEFAULTS, Defaults, default
 
 # Check optional scienceplots availability cleanly
 try:
@@ -158,7 +160,7 @@ def get_linestyle_cycle(which: Optional[str] = None):
     return globals()[_get_linestyle_slot(which)]
 
 
-def configure_style(style: str = "publication", font_size: int = 10, use_latex: bool = False, dpi: int = 150, **overrides: Any) -> None:
+def configure_style(style: str = "publication", font_size: Optional[float] = None, use_latex: bool = False, dpi: int = 150, **overrides: Any) -> Defaults:
     """Configure matplotlib rcParams for publication-quality figures.
 
     Parameters
@@ -170,15 +172,31 @@ def configure_style(style: str = "publication", font_size: int = 10, use_latex: 
         - 'poster'       : scaled fonts and strokes for posters
         - 'minimal'      : stripped-down axes visuals
         - 'default'      : reset to Matplotlib defaults
-    font_size : int, default=10
-        Base typographic scale.
+    font_size : float, optional
+        Base font size in points. Defaults to 9.
     use_latex : bool, default=False
         If True, tries LaTeX-backed rendering via scienceplots.
     dpi : int, default=150
         Screen/display DPI.
     **overrides : dict
-        Additional rcParams overrides. Underscores are converted to dots.
+        Figure defaults such as column_pt, text_pt, points_per_inch, width,
+        height, legend_size, letter_size and inset_size. Other keys override
+        rcParams with underscores converted to dots. Raw rcParams take precedence.
+
+    Returns
+    -------
+    Defaults
+        Detached settings with one_column and two_column widths in inches and
+        all font sizes in points. The default figure is one column wide and
+        half as high. Widths use 246/510 points and 70 points per inch. Font size
+        is 9, with legend/letter/inset sizes smaller by 2.5/1.5/2 points.
+        Applied through rcParams for new figures, except for style='default',
+        which resets Matplotlib. Letter and inset sizes are available for callers.
+        Shared DEFAULTS and existing figures are not changed.
     """
+    font_size   = DEFAULTS["font_size"] if font_size is None else font_size
+    figure_keys = {key: overrides.pop(key) for key in tuple(overrides) if key in DEFAULTS}
+    settings    = default(font_size=font_size, dpi=dpi, **figure_keys)
     # rcdefaults, not rcParams.update(rcParamsDefault): it keeps the session keys (interactive, backend, ...). Resetting interactive to False
     # stops a Jupyter inline backend from showing figures, so a second call in a notebook hid every later figure.
     mpl.rcdefaults()
@@ -355,12 +373,19 @@ def configure_style(style: str = "publication", font_size: int = 10, use_latex: 
                 except (KeyError, ValueError):
                     pass
 
+    if style != "default":
+        mpl.rcParams["figure.figsize"] = (settings.width, settings.height)
+        mpl.rcParams["legend.fontsize"] = settings.legend_size
+        mpl.rcParams["image.cmap"] = settings.cmap
+
     for key, value in overrides.items():
         key = key.replace("_", ".")
         try:
             mpl.rcParams[key] = value
         except (KeyError, ValueError):
             warnings.warn(f"Invalid rcParam '{key}'", UserWarning, stacklevel=2)
+
+    return settings
 
 
 def get_rcparams_summary() -> dict:

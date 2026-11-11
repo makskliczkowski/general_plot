@@ -161,3 +161,27 @@ def test_tail_drops_non_finite_and_takes_the_last_part():
     assert np.isnan(Fitter.tail(v, 4, skip_nan=False))                      # the NaN in the tail propagates
     assert Fitter.tail(v, 2, skip_nan=False) == 4.0                         # no NaN in the last two
     assert np.isnan(Fitter.tail([np.nan, np.nan], 1))
+
+
+@pytest.mark.parametrize('length,take_last,expected', [
+    (7, 0.5, slice(4, 7)), (7, 3, slice(4, 7)), (7, 99, slice(0, 7)),
+    (7, 0., slice(6, 7)), (0, 0.5, slice(0, 0)),
+    (7, np.float64(0.5), slice(4, 7)), (7, np.int64(3), slice(4, 7)),
+])
+def test_tail_slice_matches_numpy_and_hdf5(tmp_path, length, take_last, expected):
+    from general_plot.data import HDF5Manager
+    values = np.arange(length * 2).reshape(length, 2)
+    selection = Fitter.tail_slice(length, take_last)
+    assert selection == expected
+    path = HDF5Manager.write(tmp_path / 'tail.h5', {'values': values})
+    assert np.array_equal(HDF5Manager.read_dataset(path, 'values', selection=selection), values[expected])
+
+
+@pytest.mark.parametrize('length,take_last,error', [
+    (-1, 1, ValueError), (3.5, 1, TypeError), (True, 1, TypeError),
+    (3, -1, ValueError), (3, 1.5, ValueError), (3, np.nan, ValueError),
+    (3, '1', TypeError), (3, True, TypeError),
+])
+def test_tail_slice_rejects_invalid_bounds(length, take_last, error):
+    with pytest.raises(error):
+        Fitter.tail_slice(length, take_last)

@@ -10,12 +10,39 @@ File: general_plot/data/figure_data.py
 """
 from __future__ import annotations
 
+import datetime
+import subprocess
 from pathlib    import Path
-from typing     import Any, Mapping, Optional, Union
+from typing     import Any, Iterable, Mapping, Optional, Union
 
 import numpy    as np
 
 from .hdf5      import HDF5Manager
+
+
+def figure_metadata(spec: Mapping[str, Any], source: Union[str, Path, Iterable[Union[str, Path]]], *, repository: Union[str, Path]) -> dict:
+    """Record a figure selection and the explicit source-code revision.
+
+    Parameters
+    ----------
+    spec : mapping
+        Caller-defined selection or plotting settings. Copied without interpretation.
+    source : path-like or iterable of path-like
+        Input locations recorded as supplied. No files are scanned or loaded.
+    repository : path-like
+        Directory in the Git checkout that produced the figure. Git errors
+        propagate. The current HEAD is recorded, not uncommitted changes.
+
+    Returns
+    -------
+    dict
+        spec, source, local date and git_commit fields for write_figure_data's
+        metadata argument. No current working directory or project is inferred.
+        Writer device provenance is added separately by the HDF5 writer.
+    """
+    commit  = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repository, capture_output=True, text=True, check=True).stdout.strip()
+    sources = [source] if isinstance(source, (str, Path)) else source
+    return {"spec": dict(spec), "source": [str(path) for path in sources], "date": datetime.date.today().isoformat(), "git_commit": commit}
 
 
 def write_figure_data(path: Union[str, Path], series: Mapping[str, tuple], *, metadata: Optional[Mapping[str, Any]] = None, verbose: bool = False) -> Path:

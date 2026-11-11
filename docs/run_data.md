@@ -39,6 +39,23 @@ positive        = data.read("history/energy", transform=lambda values: values[va
 
 `LazyHDF5.read` bypasses the full-dataset cache. Its result is consistent whether or not index access has already cached that dataset. `HDF5Manager.read(path, keys, selection=..., transform=...)` applies the same selection and transform to every requested dataset in one file open. Supply datasets with compatible shapes. An empty key list reads no arrays. Missing dataset paths raise `KeyError`.
 
+For final fractions or row counts, use the same slice as the shared fitter.
+This selects the last rows before HDF5 reads them.
+
+```python
+from general_plot.fitting import Fitter
+
+length = HDF5Manager.describe(path)["observables"]["shape"][0]
+selection = Fitter.tail_slice(length, 0.1)
+tail = HDF5Manager.read_dataset(path, "observables", selection=selection)
+score = Fitter.aggregate(tail[:, 0], mean_type="median")
+```
+
+Fractions round down. A nonempty axis always selects at least one row, including
+for a zero fraction or count. Counts above the axis length select the whole axis.
+Empty axes stay empty. Negative counts and fractions outside `[0, 1]` raise errors.
+`Fitter.tail` uses this same selection for arrays already in memory.
+
 ## Supported data
 
 | Input | Storage and returned values |
@@ -53,6 +70,36 @@ positive        = data.read("history/energy", transform=lambda values: values[va
 JSON provenance is a separate `metadata` attribute. Missing writer source information is added as described below. It must contain JSON-compatible values. Complex values belong in datasets. HDF5 string limitations, such as embedded null characters, still apply. Binary blobs can be represented as `uint8` arrays.
 
 `HDF5Manager.write` replaces a complete file atomically after writing a temporary sibling. Failed writes preserve the previous destination. Dataset paths must be normalized and cannot contain another dataset path. Parent directories are created. Reads never create directories or modify inputs.
+
+## Create and parse parameter folders
+
+```python
+from general_plot.data import format_parameters, parse_parameters
+
+folder = format_parameters({"count": 4096, "rate": 0.001, "solver": "auto", "exact": None})
+# count_4096,rate_0.001,solver_auto,exact
+fields = parse_parameters(folder)
+# {"count": "4096", "rate": "0.001", "solver": "auto", "exact": None}
+```
+
+Each mapping describes one folder component. The caller chooses the hierarchy
+with `Path(root) / folder`. Mapping order sets the display order. A bare flag
+maps to `None`. An empty text value remains distinct from a flag. The parser
+returns strings and does not infer numbers, booleans or the meaning of `auto`.
+
+Percent encoding protects commas, path separators and percent signs.
+Underscores in keys are escaped. Underscores in values remain readable.
+Duplicate decoded keys, invalid escapes and invalid path components raise errors.
+Numbers use `format_number`, which keeps integer values below one million and
+otherwise rounds to four significant digits. Supply text when every digit must
+appear in a name. Store complete parameters in metadata for exact run identity.
+Existing underscore-separated model or architecture labels need their own schema.
+
+Data imports do not load Matplotlib or change its style. Package exports load
+on first access and are then cached. Accessing a plotting export, such as
+`from general_plot import Plotter`, applies the default style once. Direct
+submodule imports do not apply style. Call `configure_style` explicitly when
+using those imports. Data selection and fitting exports do not apply style.
 
 ## Discover and filter runs
 
@@ -235,6 +282,19 @@ provenance  = read_figure_metadata("figures/convergence.h5")
 ```
 
 Figure-data helpers add a named `(x, y)` series contract to the same HDF5 manager. Arrays in a pair need matching first dimensions. Each group contains `x` and `y` datasets. Older files with this layout remain readable. Selections, units, dates and repository commits are supplied explicitly by the caller. Missing writer provenance is added automatically. `Plotter.save_fig` handles rendered images.
+
+Use `figure_metadata` when the file needs a selection, source paths, date and Git
+revision. The repository argument is explicit and Git errors propagate.
+
+```python
+from general_plot.data import figure_metadata
+
+metadata = figure_metadata({"seed": 11}, ["runs/device_a", "runs/device_b"], repository="/path/to/project")
+write_figure_data("figures/convergence.h5", {"panel_a": (steps, error)}, metadata=metadata)
+```
+
+This records the current HEAD and the local date. It does not record uncommitted
+changes or infer the producer device from the input paths.
 
 Install `general-plot[data]` for the optional h5py and pandas dependencies. The discovery and selection logic uses the standard library. The discovery and lazy-cache boundaries draw on the [general_python common modules](https://github.com/makskliczkowski/general_python/tree/main/common). Identity and ranking remain explicit because a shared library cannot infer a project's run semantics. The APIs do not coordinate concurrent cache loads or automatically aggregate trajectories with different grids or units.
 

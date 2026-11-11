@@ -427,3 +427,86 @@ def test_unique_lazy_index_validates_before_loading(tmp_path):
     with pytest.raises(ValueError,match='duplicate index key'):
         RunCatalog(entries).index_by(lambda entry:entry.metadata['seed'])
     assert len(calls)==1
+
+
+def test_figure_metadata_uses_explicit_repository_and_preserves_inputs(tmp_path):
+    import datetime
+    import subprocess
+    from general_plot.data import figure_metadata
+
+    repository = tmp_path / 'repository'
+    repository.mkdir()
+    subprocess.run(['git', 'init', str(repository)], check=True, capture_output=True)
+    subprocess.run(['git', '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid',
+                    '-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '-m', 'fixture'],
+                   cwd=repository, check=True, capture_output=True)
+    commit = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=repository,
+                            check=True, capture_output=True, text=True).stdout.strip()
+    spec = {'seed': 7}
+    metadata = figure_metadata(spec, tmp_path / 'inputs', repository=repository)
+    assert metadata == {'spec': spec, 'source': [str(tmp_path / 'inputs')],
+                        'date': datetime.date.today().isoformat(), 'git_commit': commit}
+    assert metadata['spec'] is not spec
+    output = write_figure_data(tmp_path / 'figure.h5', {'a': ([1, 2], [3, 4])}, metadata=metadata)
+    saved = read_figure_metadata(output)
+    assert all(saved[key] == value for key, value in metadata.items())
+    assert figure_metadata({}, [tmp_path, 'relative'], repository=repository)['source'] == [str(tmp_path), 'relative']
+    with pytest.raises(subprocess.CalledProcessError):
+        figure_metadata({}, [], repository=tmp_path)
+
+
+def test_parameter_folders_escape_text_and_preserve_flag_distinctions():
+    from general_plot.data import format_parameters, parse_parameters
+    fields = {'sample_count': 4096, 'label': 'a/b,c_% unicode Ω', 'flag': None,
+              'empty': '', 'literal': 'none', 'enabled': True, 'backend': '1.5_lanczos'}
+    folder = format_parameters(fields)
+    assert '/' not in folder and '\\' not in folder
+    assert folder.startswith('sample%5Fcount_4096,')
+    assert parse_parameters(folder) == {'sample_count': '4096', 'label': fields['label'],
+                                       'flag': None, 'empty': '', 'literal': 'none',
+                                       'enabled': 'true', 'backend': '1.5_lanczos'}
+    assert list(parse_parameters(folder)) == list(fields)
+    assert parse_parameters('dt_1,nc_auto,es_1.5_lanczos,matvec,single') == {
+        'dt': '1', 'nc': 'auto', 'es': '1.5_lanczos', 'matvec': None, 'single': None}
+
+
+@pytest.mark.parametrize('folder', ['', '.', '..', 'x_1/x_2', 'x_1\\x_2', 'x_1,,y_2',
+                                    'x_1,x_2', 'x_1,%78_2', '_1', 'x_%ZZ', 'x_%FF'])
+def test_parameter_folder_parser_rejects_invalid_names(folder):
+    from general_plot.data import parse_parameters
+    with pytest.raises(ValueError):
+        parse_parameters(folder)
+
+
+@pytest.mark.parametrize('fields', [{}, {'': 1}, {1: 1}, {'.': None}, {'..': None},
+                                   {'x': np.nan}, {'x': np.inf}, {'x': []}])
+def test_parameter_folder_writer_rejects_invalid_fields(fields):
+    from general_plot.data import format_parameters
+    with pytest.raises((ValueError, TypeError)):
+        format_parameters(fields)
+
+
+def test_data_import_does_not_load_plotting_or_change_style(tmp_path):
+    import os
+    import subprocess
+    import sys
+    import textwrap
+    environment = dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parents[1]))
+    subprocess.run([sys.executable, '-c', textwrap.dedent('''
+        import sys
+        from general_plot.data import format_parameters
+        assert format_parameters({'seed': 11}) == 'seed_11'
+        assert 'matplotlib' not in sys.modules
+        assert 'scipy' not in sys.modules
+        import matplotlib as mpl
+        mpl.rcParams['font.size'] = 19
+        from general_plot.data import parse_parameters
+        assert mpl.rcParams['font.size'] == 19
+        import general_plot
+        assert 'Plotter' in dir(general_plot)
+        from general_plot import Plotter
+        assert mpl.rcParams['font.size'] != 19
+        mpl.rcParams['font.size'] = 17
+        from general_plot import blend
+        assert mpl.rcParams['font.size'] == 17
+    ''')], cwd=tmp_path, env=environment, check=True, capture_output=True, text=True)

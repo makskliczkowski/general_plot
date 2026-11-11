@@ -4846,8 +4846,8 @@ class Plotter(ColorbarMixin, TickMixin):
     @staticmethod
     def get_subplots(   nrows           =   1,
                         ncols           =   1,
-                        sizex           =   10.,                    # total width [in] OR list of per-col ratios
-                        sizey           =   10.,                    # total height [in] OR list of per-row ratios
+                        sizex           =   None,                   # configured width [in] OR list of per-col ratios
+                        sizey           =   None,                   # configured height [in] OR list of per-row ratios
                         sizex_def       =   3,                      # inches per unit of sizex ratio (if sizex is a sequence)
                         sizey_def       =   3,                      # inches per unit of sizey ratio (if sizey is a sequence)
                         annot_x_pos     =   None,                   # position for annotation - x
@@ -4872,8 +4872,9 @@ class Plotter(ColorbarMixin, TickMixin):
         ----------
         nrows, ncols : int, default=(1, 1)
             Grid shape used for regular subplot creation and for ``spans``.
-        sizex, sizey : float or sequence, default=10.0
+        sizex, sizey : float or sequence, optional
             Figure width/height in inches, or ratio sequences per column/row.
+            Omitted dimensions use figure.figsize set by configure_style.
         sizex_def, sizey_def : float, default=3
             Inch scaling used when ``sizex``/``sizey`` are ratio sequences.
         annot_x_pos, annot_y_pos : float or sequence, optional
@@ -4940,6 +4941,9 @@ class Plotter(ColorbarMixin, TickMixin):
         ``fig, axes = Plotter.get_subplots(nrows=3, ncols=4, spans={'main': (0, 2, 0, 3), 'side': (0, 2, 3, 4), 'bottom': (2, 3, 0, 4)})``
         ``axes['main'].plot(x, y)``
         """
+
+        sizex           = mpl.rcParams["figure.figsize"][0] if sizex is None else sizex
+        sizey           = mpl.rcParams["figure.figsize"][1] if sizey is None else sizey
 
         #! Extract utility kwargs (do not pass to plt.subplots)
         gridspec_kw     = dict(kwargs.pop('gridspec_kw', {}) or {})

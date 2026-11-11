@@ -42,3 +42,35 @@ def test_cycles_and_normalizers():
 # ---------------------------------------------
 #! EOF
 # ---------------------------------------------
+
+
+def test_printed_sizes_are_accessible_and_apply_to_new_figures():
+    import numpy as np
+    from general_plot import DEFAULTS, Plotter
+    before = dict(DEFAULTS)
+    settings = configure_style()
+    assert settings.one_column == 246 / 70
+    assert settings.two_column == 510 / 70
+    assert settings.width == settings.one_column
+    assert settings.height == 0.5 * settings.width
+    assert (settings.font_size, settings.legend_size, settings.letter_size, settings.inset_size) == (9, 6.5, 7.5, 7)
+    assert mpl.rcParams['legend.fontsize'] == settings.legend_size
+    fig, _ = Plotter.get_subplots()
+    assert np.allclose(fig.get_size_inches(), [settings.width, settings.height])
+    assert DEFAULTS == before
+
+
+def test_printed_sizes_follow_overrides_without_leaking_between_calls():
+    import numpy as np
+    from general_plot import Plotter
+    settings = configure_style(font_size=10, column_pt=250, text_pt=520, points_per_inch=72.27,
+                               width=5, legend_size=8, letter_size=9, inset_size=7)
+    assert settings.one_column == 250 / 72.27
+    assert settings.two_column == 520 / 72.27
+    assert settings.width == 5 and settings.height == 2.5
+    assert (settings.legend_size, settings.letter_size, settings.inset_size) == (8, 9, 7)
+    assert mpl.rcParams['font.size'] == 10 and mpl.rcParams['legend.fontsize'] == 8
+    fig, _ = Plotter.get_subplots(sizex=6, sizey=3)
+    assert np.allclose(fig.get_size_inches(), [6, 3])
+    assert configure_style().font_size == 9
+    assert configure_style().width == 246 / 70
