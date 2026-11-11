@@ -18,7 +18,7 @@ import numpy    as np
 from .hdf5      import HDF5Manager
 
 
-def write_figure_data(path: Union[str, Path], series: Mapping[str, tuple], *, metadata: Optional[Mapping[str, Any]] = None) -> Path:
+def write_figure_data(path: Union[str, Path], series: Mapping[str, tuple], *, metadata: Optional[Mapping[str, Any]] = None, verbose: bool = False) -> Path:
     """Atomically replace an HDF5 figure-data file with named (x, y) series.
 
     Parameters
@@ -33,6 +33,8 @@ def write_figure_data(path: Union[str, Path], series: Mapping[str, tuple], *, me
         
         Missing writer provenance is filled with safe local host facts. Supplied
         source records are preserved. No repository or project semantics are inferred.
+    verbose : bool
+        Emit INFO timing and memory reports through general_plot.data.
 
     Returns
     -------
@@ -59,16 +61,19 @@ def write_figure_data(path: Union[str, Path], series: Mapping[str, tuple], *, me
     
     # Prepare the datasets dictionary with keys like "group/x" and "group/y".
     datasets = {f"{name}/{axis}": values for name, pair in arrays.items() for axis, values in zip(("x", "y"), pair)}
-    return HDF5Manager.write(path, datasets, metadata=metadata)
+    return HDF5Manager.write(path, datasets, metadata=metadata, verbose=verbose)
 
 
-def read_figure_data(path: Union[str, Path]) -> dict:
+def read_figure_data(path: Union[str, Path], *, verbose: bool = False) -> dict:
     """Read named (x, y) arrays, closing the HDF5 file before returning.
 
     Parameters
     ----------
     path : path-like
         Figure-data file. Also reads older files with separate provenance attrs.
+
+    verbose : bool
+        Emit INFO timing and memory reports through general_plot.data.
 
     Returns
     -------
@@ -77,7 +82,7 @@ def read_figure_data(path: Union[str, Path]) -> dict:
     """
     keys    = set(HDF5Manager.keys(path))
     groups  = sorted(key[:-2] for key in keys if key.endswith("/x") and key[:-1] + "y" in keys)
-    arrays  = HDF5Manager.read(path, [f"{name}/{axis}" for name in groups for axis in ("x", "y")])
+    arrays  = HDF5Manager.read(path, [f"{name}/{axis}" for name in groups for axis in ("x", "y")], verbose=verbose)
     return {name: (arrays[f"{name}/x"], arrays[f"{name}/y"]) for name in groups}
 
 

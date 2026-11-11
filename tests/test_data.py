@@ -368,3 +368,62 @@ def test_python_comparison_field_filters_are_shared_with_plotter(tmp_path):
         raise RuntimeError('visible predicate failure')
     with pytest.raises(RuntimeError,match='visible'):
         runs.select({'seed':invalid})
+
+
+def test_verbose_resource_reports_do_not_force_reads_or_change_results(tmp_path,caplog):
+    import logging
+    from general_plot.data import HDF5Manager, LazyHDF5, RunEntry
+    pytest.importorskip('h5py')
+    path=tmp_path/'resources.h5'
+    values=np.arange(12.,dtype='float64')
+    with caplog.at_level(logging.INFO,logger='general_plot.data'):
+        HDF5Manager.write(path,{'x':values})
+        HDF5Manager.read_dataset(path,'x')
+        assert not caplog.records
+        np.testing.assert_array_equal(HDF5Manager.read_dataset(path,'x',selection=np.s_[2:5],verbose=True),values[2:5])
+        assert 'array_bytes=24' in caplog.records[-1].getMessage()
+        view=LazyHDF5(path,verbose=True)
+        assert 'cached=0' in repr(view)
+        assert view['x'] is view['x']
+        assert 'cache_hit=True' in caplog.records[-1].getMessage()
+        entry=RunEntry(path,tmp_path,'r',{},0,LazyHDF5)
+        payload=entry.load(verbose=True)
+        assert 'cached=0' in repr(payload)
+        assert 'array_bytes=n/a' in caplog.records[-1].getMessage()
+        with pytest.raises(KeyError):
+            HDF5Manager.read_dataset(path,'missing',verbose=True)
+        assert 'status=error' in caplog.records[-1].getMessage()
+        assert all('wall_s=' in record.getMessage() and 'peak_rss_bytes=' in record.getMessage() for record in caplog.records)
+
+
+def test_memory_report_counts_buffers_once_and_normalizes_peak_rss(monkeypatch):
+    import sys
+    from types import SimpleNamespace
+    from general_plot.data._diagnostics import _array_bytes, _peak_rss
+    resource=pytest.importorskip("resource")
+    values=np.arange(4.)
+    assert _array_bytes({'a':values,'again':values})==values.nbytes
+    monkeypatch.setattr(resource,'getrusage',lambda _:SimpleNamespace(ru_maxrss=1024))
+    monkeypatch.setattr(sys,'platform','linux')
+    assert _peak_rss()==1024*1024
+    monkeypatch.setattr(sys,'platform','darwin')
+    assert _peak_rss()==1024
+    monkeypatch.setattr(sys,'platform','win32')
+    assert _peak_rss() is None
+
+
+def test_unique_lazy_index_validates_before_loading(tmp_path):
+    from general_plot.data import RunEntry
+    calls=[]
+    def load(path):
+        calls.append(path)
+        return path.stem
+    entries=[RunEntry(tmp_path/name,tmp_path,name,{'scheme':name,'seed':11},0,load) for name in ('a','b')]
+    index=RunCatalog(entries).index_by(lambda entry:entry.metadata['scheme'])
+    assert list(index)==['a','b'] and 'a' in index and len(index)==2
+    assert calls==[]
+    assert index['a']=='a' and index['a']=='a'
+    assert len(calls)==1
+    with pytest.raises(ValueError,match='duplicate index key'):
+        RunCatalog(entries).index_by(lambda entry:entry.metadata['seed'])
+    assert len(calls)==1

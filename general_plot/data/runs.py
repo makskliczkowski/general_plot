@@ -20,6 +20,7 @@ import numpy as np
 
 from ..data_loader      import filter_results
 from .directories       import discover_files
+from ._diagnostics      import measured
 
 
 # -------------------------------------------
@@ -106,11 +107,14 @@ class RunEntry:
     loader      : Callable[[Path], Any] = field(repr=False)
     _cache      : dict = field(default_factory=dict, init=False, repr=False)
 
-    def load(self) -> Any:
-        """Load once and reuse the payload until clear_cache is called."""
-        if "data" not in self._cache:
-            self._cache["data"] = self.loader(self.path)
-        return self._cache["data"]
+    def load(self, *, verbose: bool = False) -> Any:
+        """Load once and cache the payload; verbose emits an INFO resource report."""
+        with measured("run.load", verbose) as report:
+            report["cache_hit"] = "data" in self._cache
+            if "data" not in self._cache:
+                self._cache["data"] = self.loader(self.path)
+            report.update(result=self._cache["data"], items=1)
+            return self._cache["data"]
 
     def clear_cache(self) -> None:
         """Release this entry's payload reference so the next access reloads it."""
@@ -120,6 +124,38 @@ class RunEntry:
     def loaded(self) -> bool:
         """Whether a successful payload load is cached, including a None result."""
         return "data" in self._cache
+
+
+class LazyRunMapping(Mapping):
+    """A unique-key view that loads a run only when its value is accessed.
+
+    Parameters
+    ----------
+    entries : mapping
+        Unique labels to RunEntry objects. The entries property exposes metadata
+        without loading data. keys, len and membership are also metadata-only.
+    verbose : bool
+        Emit resource reports when payloads are accessed. values and items load
+        their payloads as iterated. No attribute forwarding is performed.
+    """
+    def __init__(self, entries: Mapping, *, verbose: bool = False):
+        self.entries = dict(entries)
+        self.verbose = verbose
+
+    def __iter__(self):
+        return iter(self.entries)
+
+    def __len__(self):
+        return len(self.entries)
+
+    def __contains__(self, key):
+        return key in self.entries
+
+    def __getitem__(self, key):
+        return self.entries[key].load(verbose=self.verbose)
+
+    def __repr__(self):
+        return f"LazyRunMapping(entries={len(self)}, loaded={sum(entry.loaded for entry in self.entries.values())})"
 
 
 class RunCatalog:
@@ -142,7 +178,7 @@ class RunCatalog:
     @classmethod
     def scan(cls, roots: Union[str, Path, Iterable[Union[str, Path]]], *, pattern: str,
              loader: Callable[[Path], Any], path_for: Callable[[Path], Path],
-             read_metadata: Optional[Callable[[Path], Mapping[str, Any]]] = None) -> RunCatalog:
+             read_metadata: Optional[Callable[[Path], Mapping[str, Any]]] = None, verbose: bool = False) -> RunCatalog:
         """Discover metadata once per file across possibly overlapping roots.
 
         Parameters
@@ -156,23 +192,26 @@ class RunCatalog:
         read_metadata : callable, optional
             Metadata reader. Defaults to JSON. No payload reader is called here.
 
+        verbose : bool
+            Emit INFO timing and memory reports. Defaults to quiet.
+
         Returns
         -------
         RunCatalog
             Entries in root order and sorted file order. Overlapping roots keep
             the first occurrence of the same resolved metadata file.
         """
-        entries = []
-        for root, path in discover_files(roots, pattern):
-            metadata = read_metadata(path) if read_metadata else json.loads(path.read_text())
-            if not isinstance(metadata, Mapping):
-                raise TypeError(f"metadata must be a mapping: {path}")
+        with measured("catalog.scan", verbose) as report:
+            entries = []
+            for root, path in discover_files(roots, pattern):
+                metadata = read_metadata(path) if read_metadata else json.loads(path.read_text())
+                if not isinstance(metadata, Mapping):
+                    raise TypeError(f"metadata must be a mapping: {path}")
             
-            # Create a RunEntry for each discovered metadata file, using the provided loader and path mapping.
-            entries.append(RunEntry(Path(path_for(path)), root, str(path.relative_to(root)), dict(metadata), path.stat().st_mtime, loader))
-        return cls(entries)
-
-
+                # Create a RunEntry for each discovered metadata file, using the provided loader and path mapping.
+                entries.append(RunEntry(Path(path_for(path)), root, str(path.relative_to(root)), dict(metadata), path.stat().st_mtime, loader))
+            report["items"] = len(entries)
+            return cls(entries)
     # -------------------------------------------
 
 
@@ -198,6 +237,33 @@ class RunCatalog:
         """
         chosen = filter_results(self.entries, filters, parameters or (lambda entry: entry.metadata), tol=tol)
         return type(self)(entry for entry in chosen if predicate is None or predicate(entry))
+
+    def index_by(self, key: Callable[[RunEntry], Any], *, verbose: bool = False) -> LazyRunMapping:
+        """Build a unique metadata index before loading any payloads.
+
+        Parameters
+        ----------
+        key : callable
+            A hashable label from each entry's metadata.
+        verbose : bool
+            Report resources when an indexed payload is requested.
+
+        Returns
+        -------
+        LazyRunMapping
+            A metadata-only index. Duplicate labels raise ValueError with both
+            paths and differing field names. Use group_by for legitimate variants,
+            or best for genuine copies, before requesting a unique index.
+        """
+        indexed = {}
+        for entry in self:
+            label = key(entry)
+            if label in indexed:
+                previous    = indexed[label]
+                differences = list(parameter_differences(previous.metadata, entry.metadata))
+                raise ValueError(f"duplicate index key {label!r}: {previous.path}, {entry.path}; differing fields: {differences}")
+            indexed[label] = entry
+        return LazyRunMapping(indexed, verbose=verbose)
 
     def group_by(self, *fields: str, parameters: Optional[Callable[[RunEntry], Mapping[str, Any]]] = None) -> dict:
         """Group runs by seed, realization or other caller-selected scalar fields.
@@ -266,7 +332,7 @@ class RunCatalog:
         return tuple((entry, right[key]) for key, entry in left.items())
 
     def aggregate(self, values: Callable[[RunEntry], Any], *, statistic: Callable = np.mean,
-                  transform: Optional[Callable[[Any], Any]] = None, axis=0, **kwargs) -> Any:
+                  transform: Optional[Callable[[Any], Any]] = None, axis=0, verbose: bool = False, **kwargs) -> Any:
         """Apply a NumPy statistic to explicitly selected per-run values.
 
         Parameters
@@ -283,6 +349,9 @@ class RunCatalog:
         **kwargs
             Passed to the statistic, such as ddof for std or q for quantile.
 
+        verbose : bool
+            Emit INFO timing and memory reports. Defaults to quiet.
+
         Returns
         -------
         object
@@ -292,17 +361,23 @@ class RunCatalog:
             in memory; use the extraction callback to reduce them first when needed.
             Extracted values may come from caches; transforms should not mutate them.
         """
-        if not self.entries:
-            raise ValueError("cannot aggregate an empty catalog")
-        arrays = []
-        for entry in self:
-            array = values(entry)
-            arrays.append(np.asarray(transform(array) if transform is not None else array))
-        shape = arrays[0].shape
-        if any(array.shape != shape for array in arrays):
-            raise ValueError(f"aggregation requires equal shapes, found {[array.shape for array in arrays]}")
-        return statistic(np.stack(arrays, axis=0), axis=axis, **kwargs)
-
+        with measured("catalog.aggregate", verbose) as report:
+            if not self.entries:
+                raise ValueError("cannot aggregate an empty catalog")
+            arrays = []
+            for entry in self:
+                array = values(entry)
+                arrays.append(np.asarray(transform(array) if transform is not None else array))
+            shape = arrays[0].shape
+            if any(array.shape != shape for array in arrays):
+                raise ValueError(f"aggregation requires equal shapes, found {[array.shape for array in arrays]}")
+            
+            # Stack arrays along a new run axis, then apply the statistic. Report workspace memory usage.
+            stacked                     = np.stack(arrays, axis=0)
+            report["workspace_bytes"]   = stacked.nbytes
+            result                      = statistic(stacked, axis=axis, **kwargs)
+            report.update(result=result, items=len(arrays))
+            return result
     def best(self, *, parameters: Callable[[RunEntry], Mapping[str, Any]], rank: Callable[[RunEntry], Any]) -> RunCatalog:
         """Keep the highest-ranked copy for each exact parameter identity.
 

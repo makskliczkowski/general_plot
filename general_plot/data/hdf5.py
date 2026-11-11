@@ -22,6 +22,7 @@ import numpy            as np
 
 # Import provenance functions for metadata handling
 from .provenance        import with_provenance
+from ._diagnostics      import measured
 
 PathLike                = Union[str, Path]
 
@@ -111,8 +112,7 @@ class HDF5Manager:
             return descriptions
 
     @staticmethod
-    def read(path: PathLike, keys: Optional[Iterable[str]] = None, *, selection=(),
-             transform: Optional[Callable[[Any], Any]] = None) -> dict:
+    def read(path: PathLike, keys: Optional[Iterable[str]] = None, *, selection=(), transform: Optional[Callable[[Any], Any]] = None, verbose: bool = False) -> dict:
         """Read selected dataset elements and optionally transform their NumPy values.
 
         Parameters
@@ -128,25 +128,31 @@ class HDF5Manager:
             Receives each detached selected value. Use NumPy functions or a lambda
             for magnitudes, reshaping, reductions or value filters. Source data is unchanged.
 
+        verbose : bool
+            Emit timing, returned NumPy-buffer bytes and process peak RSS through
+            the general_plot.data logger at INFO. Defaults to quiet.
+
         Returns
         -------
         dict
             Paths mapped to numeric arrays/scalars, decoded UTF-8 text, or transformed
             values. Fixed-length byte arrays retain their byte dtype.
         """
-        import h5py
+        with measured("hdf5.read", verbose) as report:
+            import h5py
         
-        # Open the HDF5 file, determine which keys to read, and return a dictionary of selected datasets with optional transformations.
-        with h5py.File(path, "r") as file:
-            if keys is None:
-                keys = _dataset_keys(file)
-            if isinstance(keys, str):
-                raise TypeError("keys must be an iterable of dataset paths, not a string")
-            return {key: _read_dataset(file[key], selection, transform) for key in keys}
-
+            # Open the HDF5 file, determine which keys to read, and return a dictionary of selected datasets with optional transformations.
+            with h5py.File(path, "r") as file:
+                if keys is None:
+                    keys = _dataset_keys(file)
+                if isinstance(keys, str):
+                    raise TypeError("keys must be an iterable of dataset paths, not a string")
+                result = {key: _read_dataset(file[key], selection, transform) for key in keys}
+                report.update(result=result, items=len(result))
+                return result
     @staticmethod
     def read_dataset(path: PathLike, key: str, *, selection=(),
-                     transform: Optional[Callable[[Any], Any]] = None) -> Any:
+                     transform: Optional[Callable[[Any], Any]] = None, verbose: bool = False) -> Any:
         """Read one dataset or hyperslab and optionally transform its selected values.
 
         Parameters
@@ -160,15 +166,21 @@ class HDF5Manager:
         transform : callable, optional
             NumPy operation on the detached selection. It never edits the source file.
 
+        verbose : bool
+            Emit timing, returned NumPy-buffer bytes and process peak RSS through
+            the general_plot.data logger at INFO. Defaults to quiet.
+
         Returns
         -------
         object
             Selected values or the transform result, with no open file handle.
         """
-        import h5py
-        with h5py.File(path, "r") as file:
-            return _read_dataset(file[key], selection, transform)
-
+        with measured("hdf5.read_dataset", verbose) as report:
+            import h5py
+            with h5py.File(path, "r") as file:
+                result = _read_dataset(file[key], selection, transform)
+                report.update(result=result, items=1)
+                return result
     @staticmethod
     def metadata(path: PathLike) -> dict:
         """Read the JSON metadata attribute without reading datasets.
@@ -188,7 +200,7 @@ class HDF5Manager:
             return json.loads(file.attrs["metadata"])
 
     @staticmethod
-    def write(path: PathLike, datasets: Mapping[str, Any], *, metadata: Optional[Mapping[str, Any]] = None) -> Path:
+    def write(path: PathLike, datasets: Mapping[str, Any], *, metadata: Optional[Mapping[str, Any]] = None, verbose: bool = False) -> Path:
         """Atomically replace a complete file with datasets and JSON metadata.
 
         Parameters
@@ -205,36 +217,42 @@ class HDF5Manager:
             JSON provenance supplied by the caller. Missing provenance.writer is filled
             with safe local host facts. Supplied writer/producer records are preserved.
 
+        verbose : bool
+            Emit timing, returned NumPy-buffer bytes and process peak RSS through
+            the general_plot.data logger at INFO. Defaults to quiet.
+
         Returns
         -------
         Path
             Written file. On failure the previous destination remains intact.
         """
-        import h5py
-        encoded = json.dumps(with_provenance(metadata))
-        for name in datasets:
-            if not isinstance(name, str) or not name or any(part in ("", ".", "..") for part in name.split("/")):
-                raise ValueError(f"invalid dataset path: {name!r}")
+        with measured("hdf5.write", verbose) as report:
+            import h5py
+            encoded = json.dumps(with_provenance(metadata))
+            for name in datasets:
+                if not isinstance(name, str) or not name or any(part in ("", ".", "..") for part in name.split("/")):
+                    raise ValueError(f"invalid dataset path: {name!r}")
             
-            parts = name.split("/")
-            if any("/".join(parts[:i]) in datasets for i in range(1, len(parts))):
-                raise ValueError(f"dataset paths overlap: {name!r}")
+                parts = name.split("/")
+                if any("/".join(parts[:i]) in datasets for i in range(1, len(parts))):
+                    raise ValueError(f"dataset paths overlap: {name!r}")
             
-        path = Path(path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
-        os.close(descriptor)
+            path = Path(path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+            os.close(descriptor)
         
-        # Write to a temporary file and replace the destination atomically. Clean up the temporary file on failure.
-        try:
-            with h5py.File(temporary, "w") as file:
-                for name, values in datasets.items():
-                    _write_dataset(file, name, values)
-                file.attrs["metadata"] = encoded
-            os.replace(temporary, path)
-        finally:
-            Path(temporary).unlink(missing_ok=True)
-        return path
+            # Write to a temporary file and replace the destination atomically. Clean up the temporary file on failure.
+            try:
+                with h5py.File(temporary, "w") as file:
+                    for name, values in datasets.items():
+                        _write_dataset(file, name, values)
+                    file.attrs["metadata"] = encoded
+                os.replace(temporary, path)
+            finally:
+                Path(temporary).unlink(missing_ok=True)
+            report.update(result=datasets, items=len(datasets))
+            return path
 
 
 class LazyHDF5(Mapping):
@@ -248,11 +266,14 @@ class LazyHDF5(Mapping):
     pattern : str
         Glob selecting dataset paths, for example 'history/*'. Iteration, membership
         and describe read no arrays. Index access caches a complete dataset.
+    verbose : bool
+        Emit INFO reports for reads and cache hits. Defaults to quiet.
     """
-    def __init__(self, path: PathLike, pattern: str = "*"):
-        self.path   = Path(path).resolve()
-        self._info  = HDF5Manager.describe(self.path, pattern)
-        self._cache = {}
+    def __init__(self, path: PathLike, pattern: str = "*", *, verbose: bool = False):
+        self.path       = Path(path).resolve()
+        self._info      = HDF5Manager.describe(self.path, pattern)
+        self._cache     = {}
+        self.verbose    = verbose
 
     def __iter__(self):
         return iter(self._info)
@@ -267,17 +288,21 @@ class LazyHDF5(Mapping):
         return f"LazyHDF5(path={str(self.path)!r}, datasets={len(self)}, cached={len(self._cache)})"
 
     def __getitem__(self, key):
-        if key not in self._info:
-            raise KeyError(key)
-        if key not in self._cache:
-            self._cache[key] = HDF5Manager.read_dataset(self.path, key)
-        return self._cache[key]
+        with measured("hdf5.cached_read", self.verbose) as report:
+            if key not in self._info:
+                raise KeyError(key)
+            report["cache_hit"] = key in self._cache
+            if key not in self._cache:
+                self._cache[key] = HDF5Manager.read_dataset(self.path, key)
+            report.update(result=self._cache[key], items=1)
+            return self._cache[key]
+
 
     def describe(self) -> dict:
         """Return the selected dataset headers without materializing arrays."""
         return {key: dict(value) for key, value in self._info.items()}
 
-    def read(self, key: str, *, selection=(), transform: Optional[Callable[[Any], Any]] = None) -> Any:
+    def read(self, key: str, *, selection=(), transform: Optional[Callable[[Any], Any]] = None, verbose: Optional[bool] = None) -> Any:
         """Read selected elements of a visible dataset, bypassing the full-array cache.
 
         Parameters
@@ -289,6 +314,9 @@ class LazyHDF5(Mapping):
         transform : callable, optional
             NumPy operation applied after reading. The source and cache are unchanged.
 
+        verbose : bool, optional
+            Override this object's verbosity for this partial read.
+
         Returns
         -------
         object
@@ -296,7 +324,7 @@ class LazyHDF5(Mapping):
         """
         if key not in self._info:
             raise KeyError(key)
-        return HDF5Manager.read_dataset(self.path, key, selection=selection, transform=transform)
+        return HDF5Manager.read_dataset(self.path, key, selection=selection, transform=transform, verbose=self.verbose if verbose is None else verbose)
 
     def clear_cache(self) -> None:
         """Release full-array references while retaining the header snapshot."""

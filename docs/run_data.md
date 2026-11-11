@@ -107,6 +107,19 @@ mean_square = np.mean(values[inside]**2)
 
 `closed` is `both` (the default), `left`, `right` or `neither`. `None` leaves a bound open. None and NaN values do not match. Comparisons use exact ordering, independent of equality-filter tolerance. Lists and tuples still mean membership. Index cuts such as `np.s_[:, 4:7]` use Python's upper-exclusive indexing and are separate from value intervals.
 
+## Unique indexes and legitimate variants
+
+```python
+by_method = selected.index_by(lambda entry: entry.metadata["parameters"]["method"])
+print(list(by_method))                 # keys only, no data reads
+print(by_method.entries["solver_a"].metadata)
+result = by_method["solver_a"]          # loads and caches this payload
+```
+
+`index_by` requires one run per key and validates that requirement before any I/O. A collision reports both paths and the differing metadata fields. Real copies can first be resolved with `best`. Distinct controls are legitimate variants. Group by their configuration before building a unique method index, or keep the groups as collections. Do not silently overwrite a run or choose the best-performing control to resolve an indexing conflict.
+
+A lazy index exposes its underlying `RunEntry` objects through `entries`. Keys, length and membership do not load data. Iterating `values()` or `items()` does load their values, as with `LazyHDF5`. Use the entry mapping for metadata checks and lightweight scoring. `index_by(..., verbose=True)` reports individual payload accesses.
+
 ## Group and pair random realizations
 
 ```python
@@ -224,3 +237,22 @@ provenance  = read_figure_metadata("figures/convergence.h5")
 Figure-data helpers add a named `(x, y)` series contract to the same HDF5 manager. Arrays in a pair need matching first dimensions. Each group contains `x` and `y` datasets. Older files with this layout remain readable. Selections, units, dates and repository commits are supplied explicitly by the caller. Missing writer provenance is added automatically. `Plotter.save_fig` handles rendered images.
 
 Install `general-plot[data]` for the optional h5py and pandas dependencies. The discovery and selection logic uses the standard library. The discovery and lazy-cache boundaries draw on the [general_python common modules](https://github.com/makskliczkowski/general_python/tree/main/common). Identity and ranking remain explicit because a shared library cannot infer a project's run semantics. The APIs do not coordinate concurrent cache loads or automatically aggregate trajectories with different grids or units.
+
+
+## Verbose timing and memory
+
+```python
+import logging
+logging.basicConfig(level=logging.INFO)
+
+data = LazyHDF5("run.h5", verbose=True)
+part = data.read("y", selection=np.s_[:, 4:7], transform=np.square)
+run = entry.load(verbose=True)
+mean = selected.aggregate(extract, statistic=np.mean, verbose=True)
+```
+
+Verbose mode emits INFO records through the standard `general_plot.data` logger. The application configures its handlers and level. Quiet mode emits no reports. Reports cover HDF5 reads and writes, run loads, metadata scans and aggregation. They include elapsed wall seconds, logical bytes of returned NumPy buffers, process peak RSS, item count and cache-hit status. Aggregation also reports the bytes of its temporary stack. Exceptions are reported and propagated unchanged. No measurements are inserted into saved metadata or scientific identity.
+
+`array_bytes` counts NumPy buffers found in ordinary dictionaries, lists, tuples and dataclass storage, counting a repeated array object once. Views can share allocations, and object-dtype buffers omit the Python objects they point to. This is returned data volume, not an allocator measurement. Unknown or lazy payloads report `n/a`; measuring them never loads arrays or evaluates properties.
+
+`peak_rss_bytes` is the process-wide resident-memory high-water mark since process start. It is available on Linux and macOS, with OS units converted to bytes. Other platforms report `n/a`. It is neither current RSS, GPU memory nor the incremental memory cost of one operation. Timing includes the selected read and requested transform or statistic, but resource-report formatting is excluded. Cached reads are explicitly marked.
