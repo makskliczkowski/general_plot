@@ -30,7 +30,9 @@ def write_figure_data(path: Union[str, Path], series: Mapping[str, tuple], *, me
         Group paths must be unique, normalized and cannot contain one another.
     metadata : mapping, optional
         Caller-owned JSON provenance. Stored as the 'metadata' file attribute.
-        No repository, host or project information is inferred.
+        
+        Missing writer provenance is filled with safe local host facts. Supplied
+        source records are preserved. No repository or project semantics are inferred.
 
     Returns
     -------

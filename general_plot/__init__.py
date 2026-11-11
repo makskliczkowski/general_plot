@@ -5,7 +5,7 @@ from __future__     import annotations
 from .axes          import AxesList, IgnoredAxis
 from .colors        import DEFAULT_PALETTES, adjust_color, blend, cmap, darken, desaturate, get_cmap_safe, lighten, n_colors, palette, palette_cycle, to_hex, to_rgba, with_alpha
 from .config        import FigureConfig, KPathConfig, KSpaceConfig, PlotStyle, SpectralConfig
-from .data_loader   import filter_results
+from .data_loader   import Between, filter_results
 from .defaults      import DEFAULTS, Defaults, default
 from .fitting       import Fitter, FitterParams, find_maximum_idx, find_nearest_idx, find_nearest_val, mod_ceil, mod_euc, mod_floor, mod_round, mod_trunc, next_power, prev_power, thin, thin_log
 from .formatters    import CustomFormatter, MathTextSciFormatter, PercentFormatter, set_formatter
@@ -21,6 +21,7 @@ configure_style()
 __version__         = "0.1.0"
 __all__             = [
                         "AxesList",
+                        "Between",
                         "CustomFormatter",
                         "DEFAULTS",
                         "DEFAULT_PALETTES",

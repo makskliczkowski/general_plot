@@ -3,8 +3,49 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from collections.abc import Iterable, Mapping
 from typing import Any, Callable, List, Optional, Tuple
+
+
+@dataclass(frozen=True)
+class Between:
+    """An explicit interval for metadata filters or NumPy array masks.
+
+    Parameters
+    ----------
+    lower, upper : orderable scalar, optional
+        Bounds. None leaves that side open. NaN bounds and reversed intervals fail.
+        
+    closed : {'both', 'left', 'right', 'neither'}
+        Which endpoints are included. Defaults to both. Comparisons use exact
+        ordering, independent of numeric equality-filter tolerance.
+
+    Calling the rule returns a boolean for a scalar or a boolean mask for a NumPy
+    array. None and NaN values never match. Index slices remain ordinary Python
+    slices and are separate from these value intervals.
+    """
+    lower: Any = None
+    upper: Any = None
+    closed: str = "both"
+
+    def __post_init__(self):
+        if self.closed not in ("both", "left", "right", "neither"):
+            raise ValueError("closed must be both, left, right or neither")
+        if any(bound != bound for bound in (self.lower, self.upper) if bound is not None):
+            raise ValueError("interval bounds cannot be NaN")
+        if self.lower is not None and self.upper is not None and self.lower > self.upper:
+            raise ValueError("interval lower bound must not exceed upper bound")
+
+    def __call__(self, value):
+        if value is None:
+            return False
+        valid = value == value
+        if self.lower is not None:
+            valid = valid & (value >= self.lower if self.closed in ("both", "left") else value > self.lower)
+        if self.upper is not None:
+            valid = valid & (value <= self.upper if self.closed in ("both", "right") else value < self.upper)
+        return valid
 
 
 def filter_results(results         : Iterable[Any],
@@ -21,7 +62,10 @@ def filter_results(results         : Iterable[Any],
     filters : dict, optional
         Key-value mapping of parameters that each result must satisfy.
         If numeric, matching uses absolute tolerance `tol`.
-        If the target is a set/list/tuple, membership is checked.
+        If the target is a set/list/tuple, membership is checked. Between rules
+        use exact interval comparisons with explicit endpoint inclusion. A callable
+        target receives the actual field value and returns a boolean, allowing
+        ordinary Python comparisons such as lambda x: 4 <= x < 7.
     get_params_fun : callable, optional
         Function `f(item) -> dict` returning parameters for each result item.
         Defaults to inspecting dictionary keys or object attributes.
@@ -56,6 +100,8 @@ def filter_results(results         : Iterable[Any],
         return False, None
 
     def _matches(actual: Any, target: Any) -> bool:
+        if callable(target):
+            return bool(target(actual))
         if isinstance(target, (int, float)) and isinstance(actual, (int, float)):
             return math.isclose(float(actual), float(target), abs_tol=tol, rel_tol=tol)
         if isinstance(target, (set, list, tuple)):

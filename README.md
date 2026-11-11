@@ -213,4 +213,4 @@ part    = arrays.read("history/state", selection=np.s_[10:20, :], transform=np.a
 
 Discover runs from several folders with `RunCatalog.scan(...)`, filter their metadata with `select(...)` or a pandas query, and call `entry.load()` only for selected runs. Save extracted plot series with `write_figure_data(...)` and rendered figures with `Plotter.save_fig(...)`.
 
-See [run data and HDF5](docs/run_data.md) for complete examples, parameter comparisons, copy selection, supported dtypes, text handling and NumPy transforms.
+See [run data and HDF5](docs/run_data.md) for complete examples, seed grouping, between filters, matched comparisons, device provenance and statistics on selected array cuts.

@@ -323,3 +323,48 @@ def test_safe_source_metadata_preserves_producer_and_does_not_mutate_inputs(tmp_
     assert source_fields({})['writer_host_id'] is None
     explicit={'provenance':{'writer':{'host_id':'known'}}}
     assert with_provenance(explicit)==explicit
+
+
+@pytest.mark.parametrize(('closed','expected'),[('both',[False,True,True,True,False,False]), ('left',[False,True,True,False,False,False]), ('right',[False,False,True,True,False,False]), ('neither',[False,False,True,False,False,False])])
+def test_between_metadata_and_array_masks(closed,expected,tmp_path):
+    from general_plot.data import Between, RunEntry
+    rule        = Between(4,7,closed=closed)
+    values      = np.array([3.,4.,5.,7.,8.,np.nan])
+    np.testing.assert_array_equal(rule(values),expected)
+    runs        = RunCatalog(RunEntry(tmp_path/str(i),tmp_path,str(i),{'seed':value},0,dict) for i,value in enumerate(values))
+    selected    = runs.select({'seed':rule},tol=1.)
+    assert [entry.metadata['seed'] for entry in selected] == values[np.array(expected)].tolist()
+    assert not rule(None)
+    assert Between(upper=4)(4)
+    assert Between(lower=4)(5)
+    assert not Between()(np.nan)
+    assert not Between(4,7)(7.00001)
+    # Tuples retain their membership meaning, rather than becoming intervals.
+    assert [entry.metadata['seed'] for entry in runs.select({'seed':(4,7)})] == [4.,7.]
+
+
+def test_invalid_between_bounds():
+    from general_plot.data import Between
+    with pytest.raises(ValueError,match='lower'):
+        Between(7,4)
+    with pytest.raises(ValueError,match='closed'):
+        Between(4,7,closed='unknown')
+    with pytest.raises(ValueError,match='NaN'):
+        Between(np.nan,7)
+
+
+def test_python_comparison_field_filters_are_shared_with_plotter(tmp_path):
+    from general_plot import Plotter
+    from general_plot.data import RunEntry
+    metadata    = [{'seed':11,'coupling':0.2},{'seed':11,'coupling':0.5},{'seed':12,'coupling':0.3},{'seed':11}]
+    rules       = {'seed':lambda x:x==11,'coupling':lambda x:0.2<=x<0.5}
+    runs        = RunCatalog(RunEntry(tmp_path/str(i),tmp_path,str(i),item,0,dict) for i,item in enumerate(metadata))
+    assert [entry.metadata for entry in runs.select(rules)] == [metadata[0]]
+    assert Plotter.filter_results(metadata,rules) == [metadata[0]]
+    calls=[]
+    assert list(RunCatalog([list(runs)[-1]]).select({'missing':lambda value:calls.append(value)})) == []
+    assert calls==[]
+    def invalid(value):
+        raise RuntimeError('visible predicate failure')
+    with pytest.raises(RuntimeError,match='visible'):
+        runs.select({'seed':invalid})

@@ -50,7 +50,7 @@ positive        = data.read("history/energy", transform=lambda values: values[va
 | Byte strings and fixed-length byte arrays | Bytes remain bytes |
 | Arbitrary Python objects or mixed object arrays | Rejected with an error; no pickle serialization |
 
-JSON provenance is a separate `metadata` attribute. It must contain JSON-compatible values. Complex values belong in datasets. HDF5 string limitations, such as embedded null characters, still apply. Binary blobs can be represented as `uint8` arrays.
+JSON provenance is a separate `metadata` attribute. Missing writer source information is added as described below. It must contain JSON-compatible values. Complex values belong in datasets. HDF5 string limitations, such as embedded null characters, still apply. Binary blobs can be represented as `uint8` arrays.
 
 `HDF5Manager.write` replaces a complete file atomically after writing a temporary sibling. Failed writes preserve the previous destination. Dataset paths must be normalized and cannot contain another dataset path. Parent directories are created. Reads never create directories or modify inputs.
 
@@ -77,6 +77,100 @@ This example's sidecars have `parameters` and `progress` groups. JSON is the def
 
 `discover_files(roots, pattern, predicate=...)` provides the underlying directory traversal. It yields absolute `(root, file)` pairs in root order and sorted file order. Overlapping roots discover each resolved physical file once. Missing roots raise errors. List only the roots available in the current environment. Use `pathlib.Path` for other directory operations.
 
+## Comparison rules
+
+Dictionary scalars are equality filters. Callables receive a field value and can use normal Python comparisons.
+
+```python
+selected = runs.select(
+    {"seed": lambda x: x == 11,
+     "coupling": lambda x: 0.2 <= x < 0.5,
+     "status": lambda x: x != "failed"},
+    parameters=lambda entry: entry.metadata["parameters"],
+)
+```
+
+Missing fields do not match and their callable is not invoked. An explicit None value is passed through to the callable; handle it there when needed. Predicate exceptions propagate. Callable comparisons are exact Python operations, independent of the tolerance used by scalar equality filters. Compound rules across fields can use the catalog's entry-level `predicate` argument.
+
+## Between rules
+
+```python
+from general_plot.data import Between
+
+selected = runs.select(
+    {"seed": Between(4, 7), "coupling": Between(0.2, 0.5, closed="left")},
+    parameters=lambda entry: entry.metadata["parameters"],
+)
+inside = Between(4, 7)(values)       # NumPy mask for values, not index positions
+mean_square = np.mean(values[inside]**2)
+```
+
+`closed` is `both` (the default), `left`, `right` or `neither`. `None` leaves a bound open. None and NaN values do not match. Comparisons use exact ordering, independent of equality-filter tolerance. Lists and tuples still mean membership. Index cuts such as `np.s_[:, 4:7]` use Python's upper-exclusive indexing and are separate from value intervals.
+
+## Group and pair random realizations
+
+```python
+def fields(entry):
+    return entry.metadata["parameters"]
+
+by_seed = runs.group_by("seed", parameters=fields)
+by_realization = runs.group_by("seed", "disorder_id", parameters=fields)
+by_method = runs.group_by("method", parameters=fields)
+pairs = by_method["solver_a"].pair_with(
+    by_method["solver_b"],
+    parameters=lambda entry: {name: fields(entry)[name] for name in ("system", "seed", "disorder_id")},
+)
+```
+
+Grouping returns catalogs that share entries and caches. One field gives scalar dictionary keys; multiple fields give tuple keys. It uses normal Python key equality. Missing fields raise errors. Use distinct names for initialization, sampler and disorder seeds. A seed value alone does not define a physical realization or establish independence.
+
+Pairing uses the same exact JSON identity comparisons as copy selection. Include all fixed physical parameters and realization fields. Exclude the quantity being compared, such as method or device. Duplicate matching keys and unequal key sets raise errors. No run is silently dropped or selected from an ambiguous pair.
+
+## Statistics on selected windows
+
+For a dataset `y[realization, state]`, a middle-spectrum index window can be selected before reading. This assumes the caller knows the ordering of the state axis.
+
+```python
+per_realization = data.read(
+    "y", selection=np.s_[:, 4:7],
+    transform=lambda y: np.mean(y**2, axis=1),
+)
+```
+
+Here the mean is over the three selected states, returning one mean-square value per realization. The same form handles tensors, for example `np.s_[:, 6:10, :]`. Complex `y**2` is an algebraic square. Use `np.abs(y)**2` when the squared magnitude is intended.
+
+For a different window in each row, NumPy can select within a coarse slice without reading the full state axis.
+
+```python
+indices = np.array([[4, 5, 6], [6, 7, 8]])
+per_realization = data.read(
+    "y", selection=np.s_[:, 4:9],
+    transform=lambda y: np.take_along_axis(y, indices - 4, axis=1)**2,
+)
+```
+
+`aggregate` applies a NumPy statistic across selected runs. It stacks equally shaped extracted arrays along a new leading run axis. The default reduction axis is 0.
+
+```python
+mean_square = selected.aggregate(
+    lambda entry: entry.load().read("y", selection=np.s_[:, 4:7]),
+    transform=np.square, statistic=np.mean, axis=None,
+)
+
+# Standard deviation across seeds of each realization's mean-square window value.
+std = selected.aggregate(
+    lambda entry: entry.load().read(
+        "y", selection=np.s_[:, 4:7],
+        transform=lambda y: np.mean(y**2, axis=1),
+    ),
+    statistic=np.std, axis=0, ddof=1,
+)
+```
+
+The first example reduces runs, realizations and selected states into one mean. `axis=0` would keep the realization and state axes. Other NumPy statistics, such as median or quantile, use the same interface. Additional keywords, such as `ddof` or `q`, are passed to the statistic. Group or deduplicate the catalog before aggregating when required. The library does not infer independent realizations or statistical error bars.
+
+Only extracted arrays are collected, but they and their stack are held in memory. Read small cuts or compute per-run summaries in the extraction callback for large Hilbert spaces. Shapes must match and the caller must align coordinates. No interpolation is performed. Extraction can return cached values, so use transforms that do not mutate their inputs.
+
 ## Compare parameters and select copies
 
 ```python
@@ -101,6 +195,22 @@ for entry in rows["entry"]:
 
 `to_frame` needs pandas. `fields` converts project metadata into table columns. `path`, `root`, `key`, `modified` and `entry` are reserved source columns. Querying or sorting this table loads no payloads. `key` records the metadata path relative to its discovery root. It is a source identifier, separate from the caller-defined run identity.
 
+## Source devices and writer provenance
+
+```python
+from general_plot.data import source_fields, source_info
+
+sources = runs.to_frame(fields=source_fields)
+print(sources[["path", "writer_host_id", "producer_host_id", "writer_devices"]])
+by_writer = runs.group_by("writer_host_id", parameters=lambda entry: source_fields(entry.metadata))
+```
+
+Savers add `metadata.provenance.writer` only if it is missing. The record contains an opaque truncated hash of the local hostname, OS, architecture and explicitly known devices. Generic HDF5 saves do not probe devices, so their device list is empty unless supplied. No accelerator backend is initialized for provenance. Raw hostnames, usernames, IP/MAC addresses, hardware serials, paths and environment values are not automatically stored. The host ID distinguishes recorded hostnames, not persistent physical hardware.
+
+A writer describes where an artifact was saved. It does not establish where imported arrays were computed. Supply a separate `producer` record when it is known, for example `{"label": "cluster_a", **source_info(devices=known_devices)}`. Existing writer and producer records are preserved. Unknown producer fields in older files remain None; paths are not used to guess origins. Optional source labels are exposed as `writer_label` and `producer_label`.
+
+`source_fields` exposes provenance for browsing and grouping. Keep it out of scientific run identity. Different writer or device records do not create new random realizations. Device-dependent numerical settings such as precision still belong in the scientific configuration and must remain part of matching parameters.
+
 ## Save reproducible figure data
 
 ```python
@@ -111,6 +221,6 @@ series      = read_figure_data("figures/convergence.h5")
 provenance  = read_figure_metadata("figures/convergence.h5")
 ```
 
-Figure-data helpers add a named `(x, y)` series contract to the same HDF5 manager. Arrays in a pair need matching first dimensions. Each group contains `x` and `y` datasets. Older files with this layout remain readable. Selections, units, dates and repository commits are supplied explicitly by the caller. `Plotter.save_fig` handles rendered images.
+Figure-data helpers add a named `(x, y)` series contract to the same HDF5 manager. Arrays in a pair need matching first dimensions. Each group contains `x` and `y` datasets. Older files with this layout remain readable. Selections, units, dates and repository commits are supplied explicitly by the caller. Missing writer provenance is added automatically. `Plotter.save_fig` handles rendered images.
 
 Install `general-plot[data]` for the optional h5py and pandas dependencies. The discovery and selection logic uses the standard library. The discovery and lazy-cache boundaries draw on the [general_python common modules](https://github.com/makskliczkowski/general_python/tree/main/common). Identity and ranking remain explicit because a shared library cannot infer a project's run semantics. The APIs do not coordinate concurrent cache loads or automatically aggregate trajectories with different grids or units.

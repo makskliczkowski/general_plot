@@ -182,7 +182,7 @@ class RunCatalog:
         Parameters
         ----------
         filters : mapping, optional
-            Scalar or membership filters as in filter_results.
+            Scalar, membership, Between or callable field filters as in filter_results.
         parameters : callable, optional
             Filter fields for an entry. Defaults to its metadata.
         predicate : callable, optional
