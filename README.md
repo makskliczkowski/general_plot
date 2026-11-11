@@ -194,3 +194,23 @@ Execute code verification:
 ```bash
 ruff check .
 ```
+
+## Reusable run data
+
+Install `general-plot[data]` for HDF5 I/O and pandas catalogs.
+
+```python
+import numpy as np
+from general_plot.data import LazyHDF5
+
+arrays  = LazyHDF5("run.h5", pattern="history/*")
+# browse shapes and types without loading arrays
+print(arrays.describe())             
+# load and cache one dataset
+energy  = arrays["history/energy"]    
+part    = arrays.read("history/state", selection=np.s_[10:20, :], transform=np.abs)
+```
+
+Discover runs from several folders with `RunCatalog.scan(...)`, filter their metadata with `select(...)` or a pandas query, and call `entry.load()` only for selected runs. Save extracted plot series with `write_figure_data(...)` and rendered figures with `Plotter.save_fig(...)`.
+
+See [run data and HDF5](docs/run_data.md) for complete examples, parameter comparisons, copy selection, supported dtypes, text handling and NumPy transforms.
