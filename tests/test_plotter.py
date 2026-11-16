@@ -97,6 +97,17 @@ def test_figure_legend_collects_unique_labels():
     plt.close(fig)
 
 
+def test_set_legend_outside_anchors_right_of_the_axis():
+    """outside=True puts the legend at the right edge unless the caller gives an anchor."""
+    fig, ax = Plotter.get_subplots(1, 1, single_if_1=True)
+    Plotter.plot(ax, [0, 1], [0, 1], label="line")
+    legend = Plotter.set_legend(ax, outside=True)
+    assert np.allclose(legend.get_bbox_to_anchor()._bbox.bounds[:2], (1.02, 1.0))
+    moved = Plotter.set_legend(ax, outside=True, bbox_to_anchor=(1.1, 0.5))
+    assert np.allclose(moved.get_bbox_to_anchor()._bbox.bounds[:2], (1.1, 0.5))
+    plt.close(fig)
+
+
 def test_default_color_auto_cycles():
     """Curve primitives default to None color so matplotlib advances the cycle."""
     fig, axes   = Plotter.get_subplots(1, 1)
