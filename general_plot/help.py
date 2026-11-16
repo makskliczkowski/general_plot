@@ -149,7 +149,8 @@ Complex Grids & GridBuilder
     "legend": """
 Legends
 -------
-- Plotter.set_legend(ax, loc='best', frameon=False, style='publication', ...)
+- Plotter.set_legend(ax, loc='best', frameon=False, style='publication', outside=False, ...)
+  outside=True places the legend to the right of the axis at (1.02, 1.0).
 - Plotter.set_legend_custom(ax, conditions, ...)
 - Plotter.figure_legend(fig, axes, unique=True, ...)  (one legend from several panels)
 """,

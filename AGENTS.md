@@ -76,7 +76,7 @@ Plotter.save_fig("figures", "name", format=("png", "pdf"), fig=fig, log_ticks=Tr
 
 | Function | Use |
 | --- | --- |
-| `Plotter.set_legend(ax, ...)` | Publication legend. |
+| `Plotter.set_legend(ax, ..., outside=True)` | Publication legend; `outside=True` puts it right of the axis. |
 | `Plotter.set_legend_custom(ax, conditions, ...)` | Legend filtered by label predicates. |
 | `Plotter.figure_legend(fig, axes, ...)` | One figure legend collected from several axes; drops duplicate labels. |
 | `Plotter.letter(ax, index, text)`, `Plotter.label_panels(axes)` | Panel letters `(a)`, `(b)`, ... |
