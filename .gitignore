@@ -37,7 +37,6 @@ ENV/
 *.swp
 *.swo
 *~
-*AGENTS.md
 *CLAUDE.md
 
 # Testing and coverage

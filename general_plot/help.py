@@ -18,12 +18,15 @@ Available Help Topics:
   - 'legend'        : Clean, customizable figure and axis legends
   - 'annotate'      : Panel lettering ((a), (b)), callouts, highlight boxes/circles
   - 'plotters'      : Configuration dataclasses (PlotStyle, FigureConfig, etc.)
+  - 'helpers'       : Data, fitting and array helpers (mask_below, thin, Fitter)
   - 'save'          : Exporting publication figures and numeric artifacts (PlotterSave)
 
 Usage:
   >>> from general_plot import Plotter
   >>> Plotter.help('plot')
   >>> Plotter.help('axis')
+
+AGENTS.md in the package root lists the same API by task.
 """,
     "style": """
 Style Management (Plotter / configure_style)
@@ -62,6 +65,9 @@ Plotting Primitives
 - Plotter.tripcolor_field(ax, x, y, z, cmap='viridis', ...)
 - Plotter.power_law_guide(ax, x_range, exponent, anchor=..., ...)
 - Plotter.hline(ax, val, ...), Plotter.vline(ax, val, ...)
+- Plotter.phase_spans(ax, phases, ...)
+- Plotter.plot_with_uncertainty(ax, x, y, error, ...)
+- Plotter.plot_fit(ax, funct, x, maxelems=None, ...)
 """,
     "axis": """
 Axis Formatting & Parameters (Plotter.set / set_ax_params)
@@ -118,15 +124,16 @@ Colors, Palettes & Colorbars
     "layout": """
 Subplot Management & AxesList
 -----------------------------
-- Plotter.get_subplots(nrows=1, ncols=1, sizex=10, sizey=8, ...)
-  Returns (fig, axes) where axes is an `AxesList`.
+- Plotter.get_subplots(nrows=1, ncols=1, sizex=10, sizey=8, single_if_1=False, ...)
+  Returns (fig, axes) where axes is an `AxesList`; single_if_1=True returns the one axis.
 
 Features of AxesList:
   * 1D and 2D indexing: `axes[0]` or `axes[row, col]`
   * Named panel indexing: `axes['panel_a']`
+  * First axis and grid: `axes.first()`, `axes.as_grid()`
   * Grid slicing: `axes.row(0)`, `axes.col(1)`, `axes.span(0, 2, 0, 2)`
   * Batch operations: `axes.apply(lambda ax: ax.grid(True))`
-  * Disable unused panels cleanly: `axes.disable('panel_c')` or `axes[1, 2].disable()`
+  * Disable unused panels cleanly: `axes.disable('panel_c')` or `axes.disable((1, 2))`
 """,
     "grid": """
 Complex Grids & GridBuilder
@@ -143,7 +150,8 @@ Complex Grids & GridBuilder
 Legends
 -------
 - Plotter.set_legend(ax, loc='best', frameon=False, style='publication', ...)
-- Plotter.set_legend_custom(ax, handles, labels, ...)
+- Plotter.set_legend_custom(ax, conditions, ...)
+- Plotter.figure_legend(fig, axes, unique=True, ...)  (one legend from several panels)
 """,
     "annotate": """
 Annotations & Visual Accents
@@ -164,10 +172,27 @@ Access configuration classes for reproducible plots:
 - Plotter.kpath_config(**kwargs) -> KPathConfig
 - Plotter.spectral_config(**kwargs) -> SpectralConfig
 """,
+    "helpers": """
+Data, Fitting & Array Helpers
+-----------------------------
+- Plotter.mask_below(values, floor)  (hide values below a floor on a log axis)
+- Plotter.log_bin_median(x, y, bins_per_decade)
+- Plotter.data_limits(series, log=True, margin=2.5, floor=None)
+- Plotter.auto_scale(*series, decades=2.0)
+- Plotter.set_symlog(ax, which='y', linthresh=1.0)
+- Plotter.unify_limits(axes, which='y')
+- Plotter.filter_results(results, filters, tol=1e-9)
+- Fitter(x, y), Fitter.fitLinear/fitExp/fitPower/fitAny/fit_histogram
+- fit_power_scaling, fit_inverse_power_scaling, fit_ipr_scaling, aggregate
+- thin(x, y, max_points=...), thin_log(...)
+- next_power, prev_power, mod_euc, mod_ceil, mod_floor, mod_round, mod_trunc
+- find_nearest_idx, find_nearest_val, find_maximum_idx
+""",
     "save": """
 Figure and Data Export (Plotter.save_fig / PlotterSave)
 ------------------------------------------------------
-- Plotter.save_fig(directory, filename, format='pdf', dpi=300, ...)
+- Plotter.save_fig(directory, filename, format='pdf', dpi=300, fig=None, log_ticks=False, ...)
+  format may be one suffix or a sequence, for example ('png', 'pdf'); log_ticks=True formats every log axis.
 - PlotterSave:
   * PlotterSave.dict2json(directory, filename, data)
   * PlotterSave.json2dict(directory, filename)

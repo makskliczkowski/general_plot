@@ -69,11 +69,31 @@ def test_colorbar_and_grid_builder():
 
 
 def test_save_fig(tmp_path):
-    """save_fig writes the figure to disk in the requested format."""
+    """save_fig writes one file, or one per format, and can format log axes first."""
     fig, axes   = Plotter.get_subplots(1, 1)
     Plotter.plot(axes[0], [1, 2, 3], [4, 5, 6])
     Plotter.save_fig(str(tmp_path), "out.pdf", format="pdf")
     assert (tmp_path / "out.pdf").exists()
+
+    paths = Plotter.save_fig(tmp_path, "both.pdf", format=("png", "pdf"), fig=fig)
+    assert paths == [tmp_path / "both.png", tmp_path / "both.pdf"]
+    assert all(path.exists() for path in paths)
+
+    Plotter.semilogy(axes[0], [1.0, 2.0, 3.0], [1e-3, 2e-3, 3e-3])
+    axes[0].set_ylim(1e-3, 3e-3)
+    Plotter.save_fig(tmp_path, "log.png", format="png", fig=fig, log_ticks=True)
+    assert len(axes[0].get_yticks()) <= 5
+    plt.close(fig)
+
+
+def test_figure_legend_collects_unique_labels():
+    """figure_legend puts one legend on the figure and drops repeated labels."""
+    fig, axes = Plotter.get_subplots(1, 2)
+    for index, ax in enumerate(axes):
+        Plotter.plot(ax, [0, 1], [0, 1], label="same")
+        Plotter.plot(ax, [0, 1], [1, 2], label=("left", "right")[index])
+    legend = Plotter.figure_legend(fig, axes)
+    assert [text.get_text() for text in legend.get_texts()] == ["same", "left", "right"]
     plt.close(fig)
 
 

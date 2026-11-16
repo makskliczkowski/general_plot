@@ -29,7 +29,7 @@ from .data_loader           import filter_results as filter_results_impl
 from .fitting               import Fitter, thin
 from .formatters            import MathTextSciFormatter
 from .help                  import PLOTTER_HELP
-from .ticks                 import TickMixin
+from .ticks                 import TickMixin, log_ticks as _log_ticks
 from .style                 import (
                                 HAS_LABELLINES,
                                 colorsList,
@@ -66,10 +66,11 @@ class Plotter(ColorbarMixin, TickMixin):
     **Annotations**         : set_annotate, set_annotate_letter, letter, label_panels, set_arrow
     **Colorbars**           : add_colorbar, get_colormap, get_norm, discrete_colormap
     **Layouts**             : get_subplots, get_grid, get_inset
-    **Legends**             : set_legend, set_legend_custom
+    **Legends**             : set_legend, set_legend_custom, figure_legend
+    **Helpers**             : mask_below, log_bin_median, data_limits, auto_scale, set_symlog, unify_limits
     **Saving**              : save_fig, savefig
     
-    For full documentation, call: Plotter.help()
+    For full documentation, call: Plotter.help(); AGENTS.md lists the API by task.
     """
 
     # Publication-ready default settings
@@ -231,7 +232,7 @@ class Plotter(ColorbarMixin, TickMixin):
         elif topic.lower() in PLOTTER_HELP:
             print(PLOTTER_HELP[topic.lower()])
         else:
-            print(f"Unknown topic: '{topic}'. Available: plot, axis, color, layout, grid, legend, annotate, style, plotters, save")
+            print(f"Unknown topic: '{topic}'. Available: plot, axis, color, layout, grid, legend, annotate, style, plotters, helpers, save")
 
     ###########################################################
     #! Utilities for plotting
@@ -4853,6 +4854,37 @@ class Plotter(ColorbarMixin, TickMixin):
                   framealpha    = framealpha,
                   **kwargs)
 
+    @staticmethod
+    def figure_legend(fig, axes=None, *, unique=True, **kwargs):
+        """Place one legend on ``fig`` from the labelled handles of ``axes``.
+
+        Parameters
+        ----------
+        fig : matplotlib.figure.Figure
+            Figure that receives the legend.
+        axes : axis or sequence of axes, optional
+            Panels whose handles are collected. None uses every axis of ``fig``.
+        unique : bool, default=True
+            Keep only the first handle for each label, so panels that share a legend do not repeat it.
+        **kwargs
+            Forwarded to ``fig.legend``.
+
+        Returns
+        -------
+        matplotlib.legend.Legend
+        """
+        axes       = fig.axes if axes is None else Plotter.ensure_list(axes)
+        handles    = []
+        labels     = []
+        for ax in axes:
+            axis_handles, axis_labels = ax.get_legend_handles_labels()
+            for handle, label in zip(axis_handles, axis_labels):
+                if unique and label in labels:
+                    continue
+                handles.append(handle)
+                labels.append(label)
+        return fig.legend(handles, labels, **kwargs)
+
     ######### S U B A X S #########
 
     @staticmethod
@@ -5223,14 +5255,18 @@ class Plotter(ColorbarMixin, TickMixin):
     @staticmethod
     def save_fig(directory  :   str,
                 filename    :   str,
-                format      :   str = 'pdf',
+                format      :   Union[str, List[str], Tuple[str, ...]] = 'pdf',
                 dpi         :   int = 200,
                 adjust      :   bool = True,
                 fig         =   None,
                 bbox_inches =   'tight',
+                log_ticks   :   bool = False,
                 **kwargs):
         '''
         Save figure to a specific directory and return the file path.
+
+        ``format`` may be one suffix or a sequence of suffixes. A sequence writes one file per suffix and returns
+        the list of paths; one suffix returns a single path.
 
         ``bbox_inches='tight'`` (default) crops the page to the content, so the saved size differs from the figure size. ``bbox_inches=None`` keeps
         the figure size exactly, for example after ``Plotter.place_grid``, and anything outside the figure is cut off. (The package style sets
@@ -5238,27 +5274,49 @@ class Plotter(ColorbarMixin, TickMixin):
 
         ``adjust=True`` (default) resets the subplot margins to the full figure when there is no layout engine; pass ``adjust=False`` to keep
         margins set by ``subplots_adjust``, ``tight_layout`` or ``Plotter.suptitle``.
+
+        ``log_ticks=True`` applies :func:`general_plot.log_ticks` to every logarithmic axis before saving, so a
+        narrow log span gets few readable ticks.
         '''
         dir_path = Path(directory)
         dir_path.mkdir(parents=True, exist_ok=True)
-        file_path = dir_path / filename
+
+        if isinstance(format, str):
+            formats = [format]
+        else:
+            formats = [str(fmt).lstrip('.') for fmt in format]
+        if not formats:
+            raise ValueError("format must name at least one suffix")
 
         if fig is None:
             fig = plt.gcf()
+
+        if log_ticks:
+            for ax in fig.axes:
+                if ax.get_xscale() == 'log':
+                    _log_ticks(ax.xaxis, *ax.get_xlim())
+                if ax.get_yscale() == 'log':
+                    _log_ticks(ax.yaxis, *ax.get_ylim())
 
         if adjust:
             layout_engine = fig.get_layout_engine() if hasattr(fig, "get_layout_engine") else None
             if layout_engine is None:
                 fig.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)
+
+        stem      = Path(filename).stem
+        paths     = []
         with plt.rc_context({} if bbox_inches is not None else {'savefig.bbox': 'standard'}):
-            fig.savefig(file_path, format=format, dpi=dpi, bbox_inches=bbox_inches, **kwargs)
-        return file_path
+            for fmt in formats:
+                file_path = dir_path / (filename if len(formats) == 1 else f"{stem}.{fmt}")
+                fig.savefig(file_path, format=fmt, dpi=dpi, bbox_inches=bbox_inches, **kwargs)
+                paths.append(file_path)
+        return paths[0] if len(paths) == 1 else paths
 
     # alias
     @staticmethod
-    def savefig(directory: str, filename: str, format: str = 'pdf', dpi: int = 200, adjust: bool = True, fig = None, bbox_inches = 'tight', **kwargs):
+    def savefig(directory: str, filename: str, format: Union[str, List[str], Tuple[str, ...]] = 'pdf', dpi: int = 200, adjust: bool = True, fig = None, bbox_inches = 'tight', log_ticks: bool = False, **kwargs):
         """Alias for :meth:`save_fig` with the historical lowercase name."""
-        return Plotter.save_fig(directory, filename, format=format, dpi=dpi, adjust=adjust, fig=fig, bbox_inches=bbox_inches, **kwargs)
+        return Plotter.save_fig(directory, filename, format=format, dpi=dpi, adjust=adjust, fig=fig, bbox_inches=bbox_inches, log_ticks=log_ticks, **kwargs)
 
     ###############################
 

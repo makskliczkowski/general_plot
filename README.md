@@ -54,6 +54,8 @@ The library is organized into dedicated functional modules under `general_plot`:
 | `general_plot.io` | Matrix printing and data serialization via `PlotterSave` |
 | `general_plot.help` | Terminal documentation and layout guidelines via `Plotter.help()` |
 
+`AGENTS.md` lists the same API by task: figure construction, plotting primitives, axes, legends, colors, fitting and run data. Use it before writing a helper that already exists.
+
 ## Usage
 
 ### Printed figure defaults
@@ -120,7 +122,7 @@ Plotter.scatter(axes["scaling"], x, y, color="C2", s=15)
 Plotter.power_law_guide(axes["scaling"], x_range=(50, 2000), exponent=-1.5, anchor=(100, y[5]))
 Plotter.set_ax_params(axes["scaling"], xlabel=r"System Size $N$", ylabel=r"Variance $\sigma^2$")
 
-Plotter.save_fig("./figures", "multipanel.pdf", format="pdf")
+Plotter.save_fig("./figures", "multipanel.pdf", format=("png", "pdf"), fig=fig, log_ticks=True)
 plt.close(fig)
 ```
 
