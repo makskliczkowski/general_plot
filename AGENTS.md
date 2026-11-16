@@ -139,6 +139,12 @@ Plotter.save_fig("figures", "name", format=("png", "pdf"), fig=fig, log_ticks=Tr
 | `get_cmap_safe`, `get_color_cycle`, `get_linestyle_cycle`, `get_rcparams_summary` | Style and colormap access. |
 | `Plotter.get_norm`, `Plotter.cmap_colors`, `Plotter.n_colors` | Normalization and discrete colors. |
 
+## Methods used by this repository's figure scripts
+
+`Plotter.get_subplots`, `Plotter.set` / `set_ax_params`, `Plotter.set_legend`, `Plotter.figure_legend`,
+`Plotter.letter`, `Plotter.hline`, `Plotter.mask_below`, `Plotter.save_fig`. Every one is implemented and listed
+above.
+
 ## Rules for this package
 
 - Use `Plotter` helpers before writing Matplotlib code directly.

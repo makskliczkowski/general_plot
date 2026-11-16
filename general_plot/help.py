@@ -157,6 +157,7 @@ Legends
 Annotations & Visual Accents
 ----------------------------
 - Plotter.set_annotate_letter(ax, letter='(a)', loc='top_left')
+- Plotter.letter(ax, index, text='', ...), Plotter.label_panels(axes)
 - Plotter.set_annotate(ax, text, xy=(x, y), ...)
 - Plotter.set_arrow(ax, start=(x0, y0), end=(x1, y1), ...)
 - Plotter.highlight_box(ax, x_range=(x1, x2), y_range=(y1, y2), alpha=0.2)
