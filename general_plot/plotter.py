@@ -4706,6 +4706,7 @@ class Plotter(ColorbarMixin, TickMixin):
                 fontsize                    = None,
                 frameon         : bool      = False,
                 loc             : str       = 'best',
+                outside         : bool      = False,
                 alignment       : str       = 'left',
                 markerfirst     : bool      = False,
                 framealpha      : float     = 1.0,
@@ -4727,6 +4728,9 @@ class Plotter(ColorbarMixin, TickMixin):
         - fontsize        : Font size of the legend labels.
         - frameon         : Whether to draw a frame around the legend.
         - loc             : Location of the legend ('best', 'upper right', etc.).
+        - outside         : Put the legend outside the right edge of the axis. ``loc`` stays the anchor inside the
+                            legend box; the default anchor is upper left at ``(1.02, 1.0)``. Pass ``bbox_to_anchor``
+                            in ``kwargs`` to move it.
         - alignment       : Alignment of the legend title and of the block of columns in the legend box ('left', 'center', 'right').
                             The entries inside a column follow ``markerfirst``: handle first aligns them left, label first aligns
                             them right (handles in one vertical line on the right).
@@ -4787,6 +4791,10 @@ class Plotter(ColorbarMixin, TickMixin):
                 padded_l       += labels[start:start + count] + [''] * (rows - count)
                 start          += count
             handles, labels, ncol = padded_h, padded_l, len(per_column)
+
+        if outside:
+            loc = 'upper left' if loc == 'best' else loc
+            kwargs.setdefault('bbox_to_anchor', (1.02, 1.0))
 
         # Set legend
         legend = ax.legend(
