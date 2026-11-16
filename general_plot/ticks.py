@@ -2,21 +2,46 @@
 
 from __future__             import annotations
 
+import math
 import warnings
 from typing                 import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
 
-import matplotlib as mpl
-import matplotlib.colors as mcolors
-import matplotlib.pyplot as plt
-import matplotlib.ticker as mticker
-import numpy as np
+import matplotlib           as mpl
+import matplotlib.colors    as mcolors
+import matplotlib.pyplot    as plt
+import matplotlib.ticker    as mticker
+import numpy                as np
+
 from matplotlib.colors      import ListedColormap, LogNorm, Normalize, SymLogNorm
-from matplotlib.ticker      import FixedLocator, LogFormatterMathtext, LogLocator, NullFormatter
+from matplotlib.ticker      import FixedLocator, LogFormatterMathtext, LogFormatterSciNotation, LogLocator, MaxNLocator, NullFormatter, NullLocator
 
 from .colors                import get_cmap_safe
 
 # Set by plotter.py once `Plotter` exists. The methods below are static and call each other through `Plotter.`.
 Plotter = None
+
+
+def log_ticks(axis, low: float, high: float) -> None:
+    """Few labeled ticks on a log axis.
+
+    A span of at least two decades keeps whole decades. A narrower span gets ticks at the values that fall inside
+    it, placed by a linear locator, because Matplotlib's log locator subdivides it into dense ticks.
+    """
+    axis.set_minor_formatter(NullFormatter())
+    ratio = high / low
+    if ratio >= 100.0:
+        return
+    if ratio < 3.0:
+        ticks = MaxNLocator(nbins=4, steps=[1, 2, 2.5, 5, 10]).tick_values(low, high)
+    else:
+        ticks = [m * 10.0**k for k in range(math.floor(math.log10(low)), math.ceil(math.log10(high)) + 1) for m in (1, 2, 5)]
+    axis.set_major_locator(FixedLocator([t for t in ticks if low <= t <= high]))
+    axis.set_major_formatter(LogFormatterSciNotation(labelOnlyBase=False, minor_thresholds=(100, 100)))
+    axis.set_minor_locator(NullLocator())
+
+
+# -------------------------------------------
+
 
 class TickMixin:
     """Tick positions, labels, style and log-axis ticks. Mixed into `Plotter`."""
@@ -280,3 +305,8 @@ class TickMixin:
         ax.set_xscale('log')
         ax.set_xlim(*xlims)
         Plotter._setup_log_axis(ax.xaxis, xlims, decade_step)
+
+
+# -------------------------------------------
+#! EOF
+# -------------------------------------------

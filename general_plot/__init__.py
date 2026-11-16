@@ -16,10 +16,11 @@ _EXPORTS = {
     **dict.fromkeys(('MatrixPrinter', 'PlotterSave'), 'io'),
     **dict.fromkeys(('ColormapResult',), 'colorbars'),
     **dict.fromkeys(('Plotter',), 'plotter'),
+    **dict.fromkeys(('log_ticks',), 'ticks'),
     **dict.fromkeys(('configure_style', 'get_color_cycle', 'get_linestyle_cycle', 'get_rcparams_summary', 'reset_color_cycles', 'reset_linestyles'), 'style'),
 }
-_STYLE_MODULES  = {"axes", "colors", "config", "defaults", "formatters", "help", "io", "colorbars", "plotter", "style"}
-_style_ready    = False
+_STYLE_MODULES      = {"axes", "colors", "config", "defaults", "formatters", "help", "io", "colorbars", "plotter", "style", "ticks"}
+_style_ready        = False
 
 
 def __getattr__(name):
