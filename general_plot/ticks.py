@@ -4,18 +4,12 @@ from __future__             import annotations
 
 import math
 import warnings
-from typing                 import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
 
-import matplotlib           as mpl
-import matplotlib.colors    as mcolors
 import matplotlib.pyplot    as plt
 import matplotlib.ticker    as mticker
 import numpy                as np
 
-from matplotlib.colors      import ListedColormap, LogNorm, Normalize, SymLogNorm
 from matplotlib.ticker      import FixedLocator, LogFormatterMathtext, LogFormatterSciNotation, LogLocator, MaxNLocator, NullFormatter, NullLocator
-
-from .colors                import get_cmap_safe
 
 # Set by plotter.py once `Plotter` exists. The methods below are static and call each other through `Plotter.`.
 Plotter = None
