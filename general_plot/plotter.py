@@ -5274,7 +5274,8 @@ class Plotter(ColorbarMixin, TickMixin):
         Save figure to a specific directory and return the file path.
 
         ``format`` may be one suffix or a sequence of suffixes. A sequence writes one file per suffix and returns
-        the list of paths; one suffix returns a single path.
+        the list of paths; one suffix returns a single path. Each file is ``<filename>.<format>``; a suffix of
+        ``filename`` that names a figure format (``name.pdf``) is replaced, any other dot (``case_+0.35``) is kept.
 
         ``bbox_inches='tight'`` (default) crops the page to the content, so the saved size differs from the figure size. ``bbox_inches=None`` keeps
         the figure size exactly, for example after ``Plotter.place_grid``, and anything outside the figure is cut off. (The package style sets
@@ -5311,11 +5312,15 @@ class Plotter(ColorbarMixin, TickMixin):
             if layout_engine is None:
                 fig.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)
 
-        stem      = Path(filename).stem
+        # Strip a suffix only when it names a figure format, so a dot inside the name ("case_+0.35") stays part of it.
+        filename  = str(filename)
+        suffix    = Path(filename).suffix
+        known     = fig.canvas.get_supported_filetypes()
+        stem      = filename[:-len(suffix)] if suffix and suffix[1:].lower() in known else filename
         paths     = []
         with plt.rc_context({} if bbox_inches is not None else {'savefig.bbox': 'standard'}):
             for fmt in formats:
-                file_path = dir_path / (filename if len(formats) == 1 else f"{stem}.{fmt}")
+                file_path = dir_path / f"{stem}.{fmt}"
                 fig.savefig(file_path, format=fmt, dpi=dpi, bbox_inches=bbox_inches, **kwargs)
                 paths.append(file_path)
         return paths[0] if len(paths) == 1 else paths

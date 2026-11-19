@@ -79,6 +79,10 @@ def test_save_fig(tmp_path):
     assert paths == [tmp_path / "both.png", tmp_path / "both.pdf"]
     assert all(path.exists() for path in paths)
 
+    # Regression: a dot inside the name is not a suffix ("+0.35" was cut to "+0").
+    paths = Plotter.save_fig(tmp_path, "case_+0.35", format=("png", "pdf"), fig=fig)
+    assert paths == [tmp_path / "case_+0.35.png", tmp_path / "case_+0.35.pdf"]
+
     Plotter.semilogy(axes[0], [1.0, 2.0, 3.0], [1e-3, 2e-3, 3e-3])
     axes[0].set_ylim(1e-3, 3e-3)
     Plotter.save_fig(tmp_path, "log.png", format="png", fig=fig, log_ticks=True)
