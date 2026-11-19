@@ -7,11 +7,13 @@ File: general_plot/data/directories.py
 """
 from __future__     import annotations
 
+import json
 import math
+import os
 import re
 from numbers        import Real
 from pathlib        import Path
-from typing         import Callable, Iterable, Iterator, Mapping, Optional, Tuple, Union
+from typing         import Any, Callable, Iterable, Iterator, Mapping, Optional, Tuple, Union
 from urllib.parse   import quote, unquote
 
 
@@ -148,6 +150,47 @@ def discover_files(roots: Union[str, Path, Iterable[Union[str, Path]]], pattern:
             if resolved not in seen:
                 seen.add(resolved)
                 yield root, path
+
+
+def write_json(path: Union[str, Path], content: Any, *, indent: int = 2) -> Path:
+    """Write JSON atomically via a temporary sibling file so interrupts never leave partial output.
+
+    Parameters
+    ----------
+    path : path-like
+        Target JSON file. Parent directories are created if needed.
+    content : Any
+        JSON-serializable value.
+    indent : int, default 2
+        Indentation passed to ``json.dumps``.
+
+    Returns
+    -------
+    Path
+        Path to the written JSON file.
+    """
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_suffix(target.suffix + ".tmp")
+    temporary.write_text(json.dumps(content, indent=indent) + "\n")
+    os.replace(temporary, target)
+    return target
+
+
+def read_json(path: Union[str, Path]) -> Any:
+    """Read and parse a JSON file.
+
+    Parameters
+    ----------
+    path : path-like
+        JSON file to read.
+
+    Returns
+    -------
+    Any
+        Decoded JSON content.
+    """
+    return json.loads(Path(path).read_text())
 
 
 # -------------------------------------------

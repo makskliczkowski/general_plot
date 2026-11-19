@@ -11,13 +11,13 @@ File: general_plot/data/figure_data.py
 from __future__ import annotations
 
 import datetime
-import subprocess
 from pathlib    import Path
 from typing     import Any, Iterable, Mapping, Optional, Union
 
 import numpy    as np
 
 from .hdf5      import HDF5Manager
+from .provenance import git_commit
 
 
 def figure_metadata(spec: Mapping[str, Any], source: Union[str, Path, Iterable[Union[str, Path]]], *, repository: Union[str, Path]) -> dict:
@@ -40,7 +40,7 @@ def figure_metadata(spec: Mapping[str, Any], source: Union[str, Path, Iterable[U
         metadata argument. No current working directory or project is inferred.
         Writer device provenance is added separately by the HDF5 writer.
     """
-    commit  = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repository, capture_output=True, text=True, check=True).stdout.strip()
+    commit  = git_commit(repository, check=True)
     sources = [source] if isinstance(source, (str, Path)) else source
     return {"spec": dict(spec), "source": [str(path) for path in sources], "date": datetime.date.today().isoformat(), "git_commit": commit}
 

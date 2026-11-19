@@ -12,7 +12,28 @@ from __future__ import annotations
 
 import hashlib
 import platform
-from typing import Any, Iterable, Mapping, Optional
+import subprocess
+from pathlib import Path
+from typing import Any, Iterable, Mapping, Optional, Union
+
+
+def git_commit(repository: Union[str, Path], *, check: bool = False) -> Optional[str]:
+    """Return the Git HEAD commit hash of ``repository``, or ``None`` if unavailable.
+
+    Parameters
+    ----------
+    repository : path-like
+        Directory inside a Git checkout.
+    check : bool, default False
+        If True, raise ``subprocess.CalledProcessError`` when Git fails.
+
+    Returns
+    -------
+    str or None
+        Stripped commit hash, or ``None`` when ``check`` is False and Git fails.
+    """
+    result = subprocess.run(["git", "-C", str(repository), "rev-parse", "HEAD"], capture_output=True, text=True, check=check)
+    return result.stdout.strip() if result.returncode == 0 else None
 
 
 def source_info(*, devices: Iterable[Mapping[str, Any]] = ()) -> dict:

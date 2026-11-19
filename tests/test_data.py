@@ -545,3 +545,15 @@ def test_read_record_selects_groups_and_metadata_in_one_opening(tmp_path, monkey
         HDF5Manager.read_record(path, ['history'])
     with pytest.raises(TypeError, match='iterables'):
         HDF5Manager.read_record(path, 'history/energy')
+
+
+def test_write_and_read_json_and_git_commit(tmp_path):
+    from general_plot.data import git_commit, read_json, write_json
+
+    target = tmp_path / 'nested' / 'data.json'
+    written = write_json(target, {'a': 1, 'b': [2, 3]})
+    assert written == target
+    assert read_json(target) == {'a': 1, 'b': [2, 3]}
+    assert not target.with_suffix('.json.tmp').exists()
+
+    assert git_commit(tmp_path) is None
